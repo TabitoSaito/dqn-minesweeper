@@ -92,6 +92,7 @@ class MinesweeperEnv(gym.Env):
 
     def step(self, action):
         terminated = False
+        reward = -0.1 # living penalty
 
         match action:
             case (
@@ -111,6 +112,7 @@ class MinesweeperEnv(gym.Env):
             case Actions.HIT.value:
                 if self._master_board[*self._agent_location] == Identifier.BOMB.value:
                     terminated = True
+                    reward -= 10
                 self._reveal_cell(self._agent_location)
 
             case Actions.FLAG.value:
@@ -119,9 +121,10 @@ class MinesweeperEnv(gym.Env):
                 if self._board[*self._agent_location] == Identifier.FLAG.value:
                     self._board[*self._agent_location] = Identifier.UNREVEALED.value
 
-        self._check_win()
+        if self._check_win():
+            terminated = True
+            reward += 10
 
-        reward = 1 if terminated else 0
         observation = self._get_obs()
         info = self._get_info()
 

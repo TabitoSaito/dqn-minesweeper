@@ -4,37 +4,24 @@ from agent.agent import Agent
 from envs.test import make_env
 from network.network import Network
 from envs.minesweeper import MinesweeperEnv
+from gymnasium.wrappers import FlattenObservation
 
-# with open("configs/default.yaml") as stream:
-#     config = yaml.safe_load(stream)
+with open("configs/default.yaml") as stream:
+    config = yaml.safe_load(stream)
 
-# env = make_env()
-# # state_size = env.observation_space
-# number_actions = env.action_space.n
+env = MinesweeperEnv()
+env = FlattenObservation(env)
 
-# network = Network(1, number_actions)
+state_size = env.observation_space.shape[0]
+number_actions = env.action_space.n
 
-# agent = Agent(number_actions, config, network)
+network = Network(state_size, number_actions)
+
+agent = Agent(number_actions, config, network)
 
 # epsilon = None
-# epsilon = agent.load()
+epsilon = agent.load()
 
-# loop = TrainLoop(config, epsilon)
+loop = TrainLoop(config, epsilon)
 
-# loop.start_loop(agent, env, dyn_print=True)
-
-
-test = MinesweeperEnv(render_mode="human")
-
-test.reset()
-test.step(8)
-
-# while True:
-#     i = input()
-#     try:
-#         i = int(i)
-#     except ValueError:
-#         continue
-#     print(test.step(i))
-
-test._check_win()
+loop.start_loop(agent, env)
