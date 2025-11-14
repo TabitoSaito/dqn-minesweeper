@@ -118,7 +118,7 @@ class MinesweeperEnv(gym.Env):
         if self.render_mode == "human":
             self._render_frame()
 
-        self.reward = -0.1 if self.reward == 0 else self.reward
+        self.reward = -0.01 if self.reward == 0 else self.reward
 
         return observation, self.reward, terminated, False, info
 

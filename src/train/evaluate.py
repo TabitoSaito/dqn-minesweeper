@@ -2,7 +2,8 @@ import cv2
 
 def render_run(agent, env, run_name: str, max_steps: int = 0):
     assert env.render_mode in ["human", "rgb_array"]
-    state, _ = env.reset()
+    state, info = env.reset()
+    mask = info["mask"]
     done = False
     score = 0
     frames = []
@@ -11,8 +12,9 @@ def render_run(agent, env, run_name: str, max_steps: int = 0):
         i += 1
         frame = env.render()
         frames.append(frame)
-        action = agent.act(state, mask = None)
-        state, reward, done, _, _ = env.step(action.item())
+        action = agent.act(state, mask=mask)
+        state, reward, done, _, info = env.step(action.item())
+        mask = info["mask"]
         score += reward
 
     env.close()
