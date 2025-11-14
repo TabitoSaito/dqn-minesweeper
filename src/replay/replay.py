@@ -19,4 +19,6 @@ class ReplayMemory:
         rewards = torch.from_numpy(np.vstack([e[2] for e in experiences if e is not None])).float().to(self.device)
         next_states = torch.from_numpy(np.vstack([e[3] for e in experiences if e is not None])).float().to(self.device)
         dones = torch.from_numpy(np.vstack([e[4] for e in experiences if e is not None]).astype(np.uint8)).float().to(self.device)
-        return states, next_states, actions, rewards, dones
+        masks = torch.from_numpy(np.vstack([e[5] for e in experiences if e is not None]).astype(np.uint8)).bool().to(self.device)
+        next_masks = torch.from_numpy(np.vstack([e[6] for e in experiences if e is not None]).astype(np.uint8)).bool().to(self.device)
+        return states, next_states, actions, rewards, dones, masks, next_masks

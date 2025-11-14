@@ -1,5 +1,7 @@
 from collections import deque
 import numpy as np
+from agent.agent import Agent
+from envs.minesweeper import MinesweeperEnv
 
 
 class TrainLoop:
@@ -15,19 +17,24 @@ class TrainLoop:
         self.scores_on_100_episodes = deque(maxlen=100)
         self.timesteps_on_100_episodes = deque(maxlen=100)
 
-    def start_loop(self, agent, env, save_name = None, dyn_print = False, print_every = 100):
+    def start_loop(self, agent: Agent, env: MinesweeperEnv, save_name = None, dyn_print = False, print_every = 100):
         print("Start Training")
         episode = 0
         try:
             while self.number_episodes <= 0 or episode < self.number_episodes:
                 episode += 1
-                state, _ = env.reset()
+                state, info = env.reset()
+                mask = info["mask"]
                 score = 0
                 for t in range(self.maximum_number_timesteps_per_episode):
-                    action = agent.act(state, self.epsilon)
-                    next_state, reward, done, _, _ = env.step(action)
-                    agent.step(state, action, reward, next_state, done)
+                    action = agent.act(state, mask=mask, epsilon = self.epsilon)
+                    next_state, reward, done, _, info = env.step(action)
+                    if t == 0 and done:
+                        break
+                    next_mask = info["mask"]
+                    agent.step(state, action, reward, next_state, done, mask, next_mask)
                     state = next_state
+                    mask = next_mask
                     score += reward
                     if done:
                         break

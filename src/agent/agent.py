@@ -19,29 +19,37 @@ class Agent:
         self.t_step = 0
         self.config = config
 
-    def step(self, state, action, reward, next_state, done):
-        self.memory.push((state, action, reward, next_state, done))
+    def step(self, state, action, reward, next_state, done, mask, next_mask):
+        self.memory.push((state, action, reward, next_state, done, mask, next_mask))
         self.t_step = (self.t_step + 1) % self.config["LEARN_EVERY_N_STEPS"]
         if self.t_step == 0:
             if len(self.memory.memory) > self.config["MINIBATCH_SIZE"]:
                 experiences = self.memory.sample(self.config["MINIBATCH_SIZE"])
                 self.learn(experiences, self.config["DISCOUNT_FACTOR"])
 
-    def act(self, state, epsilon = 0.):
+    def act(self, state, mask: np.ndarray | None, epsilon = 0.):
         state = np.asarray(state)
         state = torch.from_numpy(state).float().unsqueeze(0).to(self.device)
         self.local_qnetwork.eval()
         with torch.no_grad():
             action_values = self.local_qnetwork(state)
+            if mask is not None:
+                action_values[0][mask] = -1e9
         self.local_qnetwork.train()
         if random.random() > epsilon:
             return np.argmax(action_values.cpu().data.numpy())
         else:
-            return random.choice(np.arange(self.action_size))
+            if mask is not None:
+                valid_actions = np.where(~mask)[0]
+            else:
+                valid_actions = np.arange(self.action_size)
+            return random.choice(valid_actions)
         
     def learn(self, experiences, discount_factor):
-        states, next_states, actions, rewards, dones = experiences
+        states, next_states, actions, rewards, dones, masks, next_masks = experiences
+        next_q_targets = self.target_qnetwork(next_states).masked_fill(next_masks, -1e9)
         next_q_targets = self.target_qnetwork(next_states).detach().max(1)[0].unsqueeze(1)
+
         q_targets = rewards + discount_factor * next_q_targets * (1 - dones)
         q_expected = self.local_qnetwork(states).gather(1, actions)
         loss = F.mse_loss(q_expected, q_targets)

@@ -11,22 +11,16 @@ import utils.helper as helper
 
 class Actions(Enum):
     RIGHT = 0
-    RIGHT_UP = 1
-    UP = 2
-    UP_LEFT = 3
-    LEFT = 4
-    LEFT_DOWN = 5
-    DOWN = 6
-    DOWN_RIGHT = 7
-    HIT = 8
-    FLAG = 9
+    UP = 1
+    LEFT = 2
+    DOWN = 3
+    HIT = 4
 
 
 class Identifier(Enum):
     NOTHING = 0
     BOMB = -1
     UNREVEALED = -2
-    FLAG = -3
 
 
 class MinesweeperEnv(gym.Env):
@@ -47,18 +41,15 @@ class MinesweeperEnv(gym.Env):
         self._agent_location = np.array([-1, -1], dtype=int)
         self._board = np.zeros((size, size), dtype=int)
         self._master_board = np.zeros((size, size), dtype=int)
+        self._mask = np.zeros(len(Actions), dtype=bool)
 
         self.action_space = spaces.Discrete(len(Actions), dtype=int)
 
         self._action_to_direction = {
             Actions.RIGHT.value: np.array([1, 0]),
-            Actions.RIGHT_UP.value: np.array([1, 1]),
             Actions.UP.value: np.array([0, 1]),
-            Actions.UP_LEFT.value: np.array([-1, 1]),
             Actions.LEFT.value: np.array([-1, 0]),
-            Actions.LEFT_DOWN.value: np.array([-1, -1]),
             Actions.DOWN.value: np.array([0, -1]),
-            Actions.DOWN_RIGHT.value: np.array([1, -1]),
         }
 
         assert render_mode is None or render_mode in self.metadata["render_modes"]
@@ -66,11 +57,13 @@ class MinesweeperEnv(gym.Env):
 
         self.window = None
         self.clock = None
+        self.font = None
 
     def _get_obs(self):
         return {"agent": self._agent_location, "board": self._board}
 
-    def _get_info(self): ...
+    def _get_info(self):
+        return {"mask": self._mask}
 
     def reset(self, seed=None, options=None):
         super().reset(seed=seed)
@@ -82,6 +75,8 @@ class MinesweeperEnv(gym.Env):
 
         self._setup_master_board()
 
+        self._update_mask()
+
         observation = self._get_obs()
         info = self._get_info()
 
@@ -92,18 +87,14 @@ class MinesweeperEnv(gym.Env):
 
     def step(self, action):
         terminated = False
-        reward = -0.1 # living penalty
+        self.reward = 0
 
         match action:
             case (
                 Actions.RIGHT.value
-                | Actions.RIGHT_UP.value
                 | Actions.UP.value
-                | Actions.UP_LEFT.value
                 | Actions.LEFT.value
-                | Actions.LEFT_DOWN.value
                 | Actions.DOWN.value
-                | Actions.DOWN_RIGHT
             ):
                 direction = self._action_to_direction[action]
                 self._agent_location = np.clip(
@@ -112,18 +103,14 @@ class MinesweeperEnv(gym.Env):
             case Actions.HIT.value:
                 if self._master_board[*self._agent_location] == Identifier.BOMB.value:
                     terminated = True
-                    reward -= 10
+                    # self.reward -= 1
                 self._reveal_cell(self._agent_location)
-
-            case Actions.FLAG.value:
-                if self._board[*self._agent_location] == Identifier.UNREVEALED.value:
-                    self._board[*self._agent_location] = Identifier.FLAG.value
-                if self._board[*self._agent_location] == Identifier.FLAG.value:
-                    self._board[*self._agent_location] = Identifier.UNREVEALED.value
 
         if self._check_win():
             terminated = True
-            reward += 10
+            self.reward += 100
+
+        self._update_mask()
 
         observation = self._get_obs()
         info = self._get_info()
@@ -131,7 +118,9 @@ class MinesweeperEnv(gym.Env):
         if self.render_mode == "human":
             self._render_frame()
 
-        return observation, reward, terminated, False, info
+        self.reward = -0.1 if self.reward == 0 else self.reward
+
+        return observation, self.reward, terminated, False, info
 
     def render(self):
         if self.render_mode == "rgb_array":
@@ -141,11 +130,14 @@ class MinesweeperEnv(gym.Env):
         if self.window is None and self.render_mode == "human":
             pygame.init()
             pygame.display.init()
-            pygame.font.init()
             self.window = pygame.display.set_mode((self.window_size, self.window_size))
-            self.font = pygame.font.SysFont('Comic Sans MS', 30)
+           
         if self.clock is None and self.render_mode == "human":
             self.clock = pygame.time.Clock()
+
+        if self.font is None and self.render_mode in self.metadata["render_modes"]:
+            pygame.font.init()
+            self.font = pygame.font.SysFont('Comic Sans MS', 30)
 
         canvas = pygame.Surface((self.window_size, self.window_size))
         canvas.fill((255, 255, 255))
@@ -230,10 +222,29 @@ class MinesweeperEnv(gym.Env):
     def _soft_reveal_cell(self, cell):
         value = self._master_board[*cell]
         self._board[*cell] = value
+        self.reward += 5
         return value
     
     def _check_win(self):
-        bombs = self._board[self._master_board == Identifier.BOMB.value]
-        flaged_bombs = sum(bombs == Identifier.FLAG.value)
-        unrevealed = sum(self._board == Identifier.UNREVEALED.value)
-        return self.num_bombs == flaged_bombs and unrevealed == 0
+        unrevealed = sum(sum(self._board == Identifier.UNREVEALED.value))
+        return unrevealed == self.num_bombs
+    
+    def _update_mask(self):
+        self._mask = np.zeros(self.action_space.n, dtype=bool)
+        for action in range(len(Actions)):
+            match action:
+                case (
+                    Actions.RIGHT.value
+                    | Actions.UP.value
+                    | Actions.LEFT.value
+                    | Actions.DOWN.value
+                ):
+                    direction = self._action_to_direction[action]
+                    if helper.index_in_bound(self._agent_location + direction, self._board.shape):
+                        continue
+                    else:
+                        self._mask[action] = True
+                    
+                case Actions.HIT.value:
+                    if self._board[*self._agent_location] != Identifier.UNREVEALED.value:
+                        self._mask[action] = True
