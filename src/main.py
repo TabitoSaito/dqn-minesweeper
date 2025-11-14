@@ -22,13 +22,13 @@ network = Network(2, number_actions)
 agent = Agent(number_actions, config, network)
 
 epsilon = None
-# epsilon = agent.load()
+epsilon = agent.load()
 
 loop = TrainLoop(config, epsilon)
 
 loop.start_loop(agent, env, dyn_print=True)
 
-env = MinesweeperEnv(render_mode="rgb_array", size=board_size, num_bombs=num_bombs)
+env = MinesweeperEnv(size=board_size, num_bombs=num_bombs, render_mode="rgb_array")
 env = MergeBoardAgent(env)
 
-render_run(agent, env, "test1", max_steps=1000)
+render_run(agent, env, "test1", max_steps=config["MAXIMUM_NUMBER_TIMESTEPS_PER_EPISODE"])

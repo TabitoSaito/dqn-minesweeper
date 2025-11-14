@@ -6,7 +6,7 @@ import random
 import pickle
 import os
 
-from replay.replay import ReplayMemory
+from buffer.buffer import ReplayMemory
 
 
 class Agent:
