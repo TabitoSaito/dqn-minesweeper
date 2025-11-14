@@ -2,10 +2,11 @@ from collections import deque
 import numpy as np
 from agent.agent import Agent
 from envs.minesweeper import MinesweeperEnv
-
+import torch
 
 class TrainLoop:
     def __init__(self, config, epsilon=None) -> None:
+        self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         self.number_episodes = config["NUMBER_EPISODES"]
         self.maximum_number_timesteps_per_episode = config[
             "MAXIMUM_NUMBER_TIMESTEPS_PER_EPISODE"
@@ -25,17 +26,28 @@ class TrainLoop:
                 episode += 1
                 state, info = env.reset()
                 mask = info["mask"]
+
+                state = torch.tensor(state, dtype=torch.float32, device=self.device).unsqueeze(0)
+                mask = torch.tensor(mask.reshape(1, -1), dtype=torch.bool, device=self.device)
+
                 score = 0
                 for t in range(self.maximum_number_timesteps_per_episode):
-                    action = agent.act(state, mask=mask, epsilon = self.epsilon)
+                    action = agent.act(state, mask=mask[0], epsilon = self.epsilon)
                     next_state, reward, done, _, info = env.step(action)
                     if t == 0 and done:
                         break
                     next_mask = info["mask"]
+
+                    next_state = torch.tensor(next_state, dtype=torch.float32, device=self.device).unsqueeze(0)
+                    reward = torch.tensor([reward], dtype=torch.float32, device=self.device)
+                    done = torch.tensor([done], dtype=torch.long, device=self.device)
+                    next_mask = torch.tensor(next_mask.reshape(1, -1), dtype=torch.bool, device=self.device)
+                    action = torch.tensor([[action]], dtype=torch.long, device=self.device)
+
                     agent.step(state, action, reward, next_state, done, mask, next_mask)
                     state = next_state
                     mask = next_mask
-                    score += reward
+                    score += reward[0]
                     if done:
                         break
                 self.scores_on_100_episodes.append(score)
