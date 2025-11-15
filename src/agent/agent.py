@@ -15,18 +15,16 @@ class Agent:
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         self.action_size = action_size
 
-        self.qnetwork1 = network.to(self.device)
-        self.qnetwork2 = network.to(self.device)
-        self.optimizer1 = optim.AdamW(
-            self.qnetwork1.parameters(), lr=config["LEARNING_RATE"], amsgrad=True
-        )
-        self.optimizer2 = optim.AdamW(
-            self.qnetwork1.parameters(), lr=config["LEARNING_RATE"], amsgrad=True
+        self.qnetwork_online = network.to(self.device)
+        self.qnetwork_target = network.to(self.device)
+        self.optimizer = optim.AdamW(
+            self.qnetwork_online.parameters(), lr=config["LEARNING_RATE"], amsgrad=True
         )
 
-        self.memory = ReplayMemory(config["REPLAY_BUFFER_SIZE"])
+        self.memory = ReplayMemory(config["REPLAY_BUFFER_SIZE"], config["ALPHA"])
         self.t_step = 0
         self.config = config
+        self.learn_updates = 0
 
     def step(
         self,
@@ -42,83 +40,59 @@ class Agent:
         self.t_step = (self.t_step + 1) % self.config["LEARN_EVERY_N_STEPS"]
         if self.t_step == 0:
             if len(self.memory) > self.config["MINIBATCH_SIZE"]:
-                experiences = self.memory.sample(self.config["MINIBATCH_SIZE"])
-                self.learn(experiences, self.config["DISCOUNT_FACTOR"])
+                beta = min(1.0, self.config["BETA_START"] + self.config["BETA_INCREMENT_PER_SAMPLING"] * self.learn_updates)
+                experiences = self.memory.sample(self.config["MINIBATCH_SIZE"], beta)
+                self.learn(experiences)
+                self.learn_updates += 1
 
     def act(self, state: torch.Tensor, mask: np.ndarray, epsilon=0.0):
-        self.qnetwork1.eval()
+        self.qnetwork_online.eval()
         with torch.no_grad():
-            action_values = self.qnetwork1(state)
+            action_values = self.qnetwork_online(state)
             action_values[0][mask] = -1e9
-        self.qnetwork1.train()
+        self.qnetwork_online.train()
         if random.random() > epsilon:
             return np.argmax(action_values.cpu().data.numpy())
         else:
             valid_actions = np.where(~mask)[0]
             return random.choice(valid_actions)
 
-    def learn(self, experiences, discount_factor):
-        states, next_states, actions, rewards, dones, masks, next_masks = experiences
+    def learn(self, experiences):
+        states, next_states, actions, rewards, dones, masks, next_masks, indices, weights = experiences
 
-        with torch.autograd.set_detect_anomaly(True):
+        rewards = rewards.unsqueeze(1)
+        dones = dones.unsqueeze(1)
 
-            rewards = rewards.unsqueeze(1)
-            dones = dones.unsqueeze(1)
+        curr_Q = self.qnetwork_online(states).masked_fill(masks, -1e9).gather(1, actions)
 
-            curr_Q1 = self.qnetwork1(states).masked_fill(masks, -1e9).gather(1, actions)
-            curr_Q2 = self.qnetwork2(states).masked_fill(masks, -1e9).gather(1, actions)
+        with torch.no_grad():
+            next_q_vals_online = self.qnetwork_online(next_states)
+            next_q_vals_online = next_q_vals_online.masked_fill(next_masks, -1e9)
+            next_actions = next_q_vals_online.argmax(dim=1, keepdim=True)
 
-            next_Q1 = self.qnetwork1(next_states).masked_fill(next_masks, -1e9)
-            next_Q2 = self.qnetwork2(next_states).masked_fill(next_masks, -1e9)
+            next_q_vals_target = self.qnetwork_target(next_states)
+            next_q_vals_target = next_q_vals_target.masked_fill(next_masks, -1e9)
+            next_Q = next_q_vals_target.gather(1, next_actions)
 
-            next_Q = torch.min(
-                torch.max(next_Q1, 1)[0],
-                torch.max(next_Q2, 1)[0]
-            )
+            target_Q = rewards + self.config["DISCOUNT_FACTOR"] * next_Q * (1 - dones)
 
-            next_Q = next_Q.view(next_Q.size(0), 1)
-            expected_Q = rewards + discount_factor * next_Q * (1 - dones)
+        td_errors = (target_Q - curr_Q).detach()
 
-            criterion = nn.SmoothL1Loss()
-            loss1 = criterion(curr_Q1, expected_Q.detach())
-            loss2 = criterion(curr_Q2, expected_Q.detach())
+        loss_per_sample = F.smooth_l1_loss(curr_Q, target_Q.detach(), reduction='none')
+        weighted_loss = (weights * loss_per_sample).mean()
 
-            self.optimizer1.zero_grad()
-            loss1.backward()
-            torch.nn.utils.clip_grad_norm_(self.qnetwork1.parameters(), 10)
+        self.optimizer.zero_grad()
+        weighted_loss.backward()
+        torch.nn.utils.clip_grad_norm_(self.qnetwork_online.parameters(), 10)
+        self.optimizer.step()
 
-            self.optimizer2.zero_grad()
-            loss2.backward()
-            torch.nn.utils.clip_grad_norm_(self.qnetwork2.parameters(), 10)
-            
-            self.optimizer1.step()
-            self.optimizer2.step()
+        with torch.no_grad():
+            for param, target_param in zip(self.qnetwork_online.parameters(), self.qnetwork_target.parameters()):
+                target_param.data.mul_(1 - self.config["UPDATE_RATE"])
+                target_param.data.add_(self.config["UPDATE_RATE"] * param.data)
 
-
-        # next_q_targets = self.qnetwork2(next_states).masked_fill(next_masks, -1e9)
-        # next_q_targets = (
-        #     self.qnetwork2(next_states).detach().max(1)[0].unsqueeze(1)
-        # )
-
-        # rewards = rewards.unsqueeze(1)
-        # dones = dones.unsqueeze(1)
-
-        # q_targets = rewards + discount_factor * next_q_targets * (1 - dones)
-        # q_expected = self.qnetwork1(states).gather(1, actions)
-        # criterion = nn.SmoothL1Loss()
-        # loss = criterion(q_expected, q_targets)
-        # self.optimizer1.zero_grad()
-        # loss.backward()
-        # torch.nn.utils.clip_grad_norm_(self.qnetwork1.parameters(), 10)
-        # self.optimizer1.step()
-
-        # local_dict = self.qnetwork1.state_dict()
-        # target_dict = self.qnetwork2.state_dict()
-        # for key in local_dict:
-        #     target_dict[key] = local_dict[key] * self.config[
-        #         "UPDATE_RATE"
-        #     ] + target_dict[key] * (1 - self.config["UPDATE_RATE"])
-        # self.qnetwork2.load_state_dict(target_dict)
+        new_priorities = td_errors.abs().squeeze(1).cpu().numpy()
+        self.memory.update_priorities(indices, new_priorities)
 
     def save(
         self,
@@ -128,9 +102,9 @@ class Agent:
         file_name = name if name else "checkpoint"
         temp = f"src/checkpoint/{file_name}.tmp"
         checkpoint = {
-            "local_model_state_dict": self.qnetwork1.state_dict(),
-            "target_model_state_dict": self.qnetwork2.state_dict(),
-            "optimizer_state_dict": self.optimizer1.state_dict(),
+            "local_model_state_dict": self.qnetwork_online.state_dict(),
+            "target_model_state_dict": self.qnetwork_target.state_dict(),
+            "optimizer_state_dict": self.optimizer.state_dict(),
             "epsilon": epsilon,
         }
 
@@ -146,12 +120,12 @@ class Agent:
         with open(path, "rb") as f:
             checkpoint, buffer = pickle.load(f)
 
-        self.qnetwork1.load_state_dict(checkpoint["local_model_state_dict"])
-        self.qnetwork2.load_state_dict(checkpoint["target_model_state_dict"])
+        self.qnetwork_online.load_state_dict(checkpoint["local_model_state_dict"])
+        self.qnetwork_target.load_state_dict(checkpoint["target_model_state_dict"])
 
-        self.optimizer1.load_state_dict(checkpoint["optimizer_state_dict"])
+        self.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
 
-        for state in self.optimizer1.state.values():
+        for state in self.optimizer.state.values():
             for k, v in state.items():
                 if isinstance(v, torch.Tensor):
                     state[k] = v.to(self.device)

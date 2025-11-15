@@ -24,7 +24,7 @@ network = Network(9, number_actions)
 agent = Agent(number_actions, config, network)
 
 epsilon = None
-epsilon = agent.load()
+# epsilon = agent.load()
 
 loop = TrainLoop(config, epsilon)
 
