@@ -44,4 +44,3 @@ def render_run(agent, env, run_name: str, max_steps: int = 0):
     for frame in frames:
         out.write(frame)
     print(f"saved video under src/replays/{run_name}.mp4")
-    print(len(frames))

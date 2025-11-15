@@ -7,12 +7,9 @@ class MergeBoardAgent(ObservationWrapper):
         super().__init__(env)
 
     def observation(self, observation: Any) -> Any:
-        agent_position = observation["agent"]
         board = observation["board"]
-        agent_board = np.zeros(board.shape)
-        agent_board[*agent_position] = 1
 
-        arrays = [agent_board]
+        arrays = []
 
         for i in range(9):
             temp = np.zeros(board.shape)

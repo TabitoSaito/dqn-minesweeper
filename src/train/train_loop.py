@@ -17,6 +17,7 @@ class TrainLoop:
         self.epsilon = self.epsilon_starting_value
         self.scores_on_100_episodes = deque(maxlen=100)
         self.timesteps_on_100_episodes = deque(maxlen=100)
+        self.wins_on_100_episodes = deque(maxlen=100)
 
     def start_loop(self, agent: Agent, env: MinesweeperEnv, save_name = None, dyn_print = False, print_every = 100):
         print("Start Training")
@@ -34,11 +35,7 @@ class TrainLoop:
                 for t in range(self.maximum_number_timesteps_per_episode):
                     action = agent.act(state, mask=mask[0], epsilon = self.epsilon)
                     next_state, reward, done, _, info = env.step(action)
-                    if t == 0 and done:
-                        break
                     next_mask = info["mask"]
-                    if t >= self.maximum_number_timesteps_per_episode - 1:
-                        reward += -1
 
                     next_state = torch.tensor(next_state, dtype=torch.float32, device=self.device).unsqueeze(0)
                     reward = torch.tensor([reward], dtype=torch.float32, device=self.device)
@@ -54,17 +51,18 @@ class TrainLoop:
                         break
                 self.scores_on_100_episodes.append(score)
                 self.timesteps_on_100_episodes.append(t)
+                self.wins_on_100_episodes.append(int(info["win"]))
                 self.epsilon = max(
                     self.epsilon_ending_value, self.epsilon_decay_value * self.epsilon
                 )
                 if dyn_print:
                     print(
-                        f"\rEpisode {episode}\tAverage Score: {np.mean(self.scores_on_100_episodes):.2f}\t\tAverage Timesteps: {np.mean(self.timesteps_on_100_episodes):.2f}",
+                        f"\rEpisode {episode}\tAverage Score: {np.mean(self.scores_on_100_episodes):.2f}\tWin Rate: {np.mean(self.wins_on_100_episodes)}",
                         end="",
                     )
                 if episode % print_every == 0:
                     print(
-                        f"\rEpisode {episode}\tAverage Score: {np.mean(self.scores_on_100_episodes):.2f}\t\tAverage Timesteps: {np.mean(self.timesteps_on_100_episodes):.2f}"
+                        f"\rEpisode {episode}\tAverage Score: {np.mean(self.scores_on_100_episodes):.2f}"
                     )
         except KeyboardInterrupt:
             pass

@@ -23,7 +23,7 @@ class Identifier(Enum):
 
 
 class MinesweeperEnv(gym.Env):
-    metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 4}
+    metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 1}
 
     def __init__(self, render_mode=None, size=8, num_bombs=10) -> None:
         self.size = size
@@ -32,24 +32,16 @@ class MinesweeperEnv(gym.Env):
 
         self.observation_space = spaces.Dict(
             {
-                "agent": spaces.Box(0, size - 1, shape=(2,), dtype=int),
                 "board": spaces.Discrete(size * size),
             }
         )
 
-        self._agent_location = np.array([-1, -1], dtype=int)
         self._board = np.zeros((size, size), dtype=int)
         self._master_board = np.zeros((size, size), dtype=int)
-        self._mask = np.zeros(len(Actions), dtype=bool)
 
-        self.action_space = spaces.Discrete(len(Actions), dtype=int)
+        self.action_space = spaces.Discrete(self._board.size, dtype=int)
 
-        self._action_to_direction = {
-            Actions.RIGHT.value: np.array([1, 0]),
-            Actions.UP.value: np.array([0, 1]),
-            Actions.LEFT.value: np.array([-1, 0]),
-            Actions.DOWN.value: np.array([0, -1]),
-        }
+        self._mask = np.zeros(self.action_space.n, dtype=bool)
 
         assert render_mode is None or render_mode in self.metadata["render_modes"]
         self.render_mode = render_mode
@@ -59,17 +51,13 @@ class MinesweeperEnv(gym.Env):
         self.font = None
 
     def _get_obs(self):
-        return {"agent": self._agent_location, "board": self._board}
+        return {"board": self._board}
 
     def _get_info(self):
-        return {"mask": self._mask}
+        return {"mask": self._mask, "win": self.win}
 
     def reset(self, seed=None, options=None):
         super().reset(seed=seed)
-        self._agent_location = self.np_random.integers(0, self.size, size=2, dtype=int)
-
-        self.visited = np.array(self._agent_location.reshape(1, -1))
-        self.last_move = np.array([0, 0], dtype=int)
 
         # game logic
         self._board.fill(Identifier.UNREVEALED.value)
@@ -78,6 +66,7 @@ class MinesweeperEnv(gym.Env):
         self._setup_master_board()
 
         self._update_mask()
+        self.win = False
 
         observation = self._get_obs()
         info = self._get_info()
@@ -88,30 +77,16 @@ class MinesweeperEnv(gym.Env):
         return observation, info
 
     def step(self, action):
-        terminated = False
+        self._terminated = False
         self.reward = -0.01
+        
+        row = int(action / self._board.shape[0])
+        col = action % self._board.shape[1]
 
-        match action:
-            case (
-                Actions.RIGHT.value
-                | Actions.UP.value
-                | Actions.LEFT.value
-                | Actions.DOWN.value
-            ):
-                direction = self._action_to_direction[action]
-                self._agent_location = np.clip(
-                    self._agent_location + direction, 0, self.size - 1
-                )
-                if (direction + self.last_move == np.array([0, 0], dtype=int)).all():
-                    self.reward += -0.01
-                self.last_move = direction
-                if self._master_board[*self._agent_location] == Identifier.BOMB.value:
-                    terminated = True
-                    self.reward += -1
-                self._reveal_cell(self._agent_location)
+        self._reveal_cell(np.array([row, col]))
 
         if self._check_win():
-            terminated = True
+            self._terminated = True
             self.reward += 1
 
         self._update_mask()
@@ -119,14 +94,10 @@ class MinesweeperEnv(gym.Env):
         observation = self._get_obs()
         info = self._get_info()
 
-        if not np.any(np.all(self._agent_location == self.visited, axis=1)):
-            self.visited = np.append(self.visited, self._agent_location.reshape(1, -1), axis=0)
-            self.reward += 0.01
-
         if self.render_mode == "human":
             self._render_frame()
 
-        return observation, self.reward, terminated, False, info
+        return observation, self.reward, self._terminated, False, info
 
     def render(self):
         if self.render_mode == "rgb_array":
@@ -176,8 +147,6 @@ class MinesweeperEnv(gym.Env):
                     text_rect.center = (int(pix_square_size * x + pix_square_size / 2), int(pix_square_size * y + pix_square_size / 2))
                     canvas.blit(text_surf, dest=text_rect)
 
-        pygame.draw.rect(canvas, (255, 0, 0), pygame.Rect(pix_square_size * self._agent_location, (pix_square_size, pix_square_size)), 3)
-
         if self.render_mode == "human":
             self.window.blit(canvas, canvas.get_rect())
             pygame.event.pump()
@@ -214,8 +183,12 @@ class MinesweeperEnv(gym.Env):
             if self._board[*cell] != Identifier.UNREVEALED.value:
                 del cells[0]
                 continue
-            if self._soft_reveal_cell(cell) == Identifier.NOTHING.value:
+            revealed = self._soft_reveal_cell(cell)
+            if revealed == Identifier.NOTHING.value:
                 reveal_all = True
+            elif revealed == Identifier.BOMB.value:
+                self.reward += -1
+                self._terminated = True
 
             for i in [[1, 0], [-1, 0], [0, 1], [0, -1]]:
                 if helper.index_in_bound(cell + i, self._master_board.shape):
@@ -228,29 +201,15 @@ class MinesweeperEnv(gym.Env):
     def _soft_reveal_cell(self, cell):
         value = self._master_board[*cell]
         self._board[*cell] = value
-        self.reward += 0.05
+        self.reward += 0.02
         return value
     
     def _check_win(self):
         unrevealed = sum(sum(self._board == Identifier.UNREVEALED.value))
-        return unrevealed == self.num_bombs
+        self.win = unrevealed == self.num_bombs
+        return self.win
     
     def _update_mask(self):
         self._mask = np.zeros(self.action_space.n, dtype=bool)
-        for action in range(len(Actions)):
-            match action:
-                case (
-                    Actions.RIGHT.value
-                    | Actions.UP.value
-                    | Actions.LEFT.value
-                    | Actions.DOWN.value
-                ):
-                    direction = self._action_to_direction[action]
-                    if helper.index_in_bound(self._agent_location + direction, self._board.shape):
-                        continue
-                    else:
-                        self._mask[action] = True
-                    
-                case Actions.HIT.value:
-                    if self._board[*self._agent_location] != Identifier.UNREVEALED.value:
-                        self._mask[action] = True
+        temp = self._board.reshape(1, -1)
+        self._mask[temp[0] != Identifier.UNREVEALED.value] = True
