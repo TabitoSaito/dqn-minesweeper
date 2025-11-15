@@ -1,6 +1,7 @@
 import torch
 import torch.optim as optim
 import torch.nn.functional as F
+import torch.nn as nn
 import numpy as np
 import random
 import pickle
@@ -15,8 +16,8 @@ class Agent:
         self.action_size = action_size
         self.local_qnetwork = network.to(self.device)
         self.target_qnetwork = network.to(self.device)
-        self.optimizer = optim.Adam(
-            self.local_qnetwork.parameters(), lr=config["LEARNING_RATE"]
+        self.optimizer = optim.AdamW(
+            self.local_qnetwork.parameters(), lr=config["LEARNING_RATE"], amsgrad=True
         )
         self.memory = ReplayMemory(config["REPLAY_BUFFER_SIZE"])
         self.t_step = 0
@@ -63,10 +64,20 @@ class Agent:
 
         q_targets = rewards + discount_factor * next_q_targets * (1 - dones)
         q_expected = self.local_qnetwork(states).gather(1, actions)
-        loss = F.mse_loss(q_expected, q_targets)
+        criterion = nn.SmoothL1Loss()
+        loss = criterion(q_expected, q_targets)
         self.optimizer.zero_grad()
         loss.backward()
+        torch.nn.utils.clip_grad_value_(self.local_qnetwork.parameters(), 100)
         self.optimizer.step()
+
+        local_dict = self.local_qnetwork.state_dict()
+        target_dict = self.target_qnetwork.state_dict()
+        for key in local_dict:
+            target_dict[key] = local_dict[key] * self.config[
+                "UPDATE_RATE"
+            ] + target_dict[key] * (1 - self.config["UPDATE_RATE"])
+        self.target_qnetwork.load_state_dict(target_dict)
 
     def save(
         self,

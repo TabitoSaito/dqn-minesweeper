@@ -69,6 +69,9 @@ class MinesweeperEnv(gym.Env):
         super().reset(seed=seed)
         self._agent_location = self.np_random.integers(0, self.size, size=2, dtype=int)
 
+        self.visited = np.array(self._agent_location.reshape(1, -1))
+        self.last_move = np.array([0, 0], dtype=int)
+
         # game logic
         self._board.fill(Identifier.UNREVEALED.value)
         self._master_board.fill(0)
@@ -87,7 +90,7 @@ class MinesweeperEnv(gym.Env):
 
     def step(self, action):
         terminated = False
-        self.reward = 0
+        self.reward = -0.01
 
         match action:
             case (
@@ -100,10 +103,13 @@ class MinesweeperEnv(gym.Env):
                 self._agent_location = np.clip(
                     self._agent_location + direction, 0, self.size - 1
                 )
+                if (direction + self.last_move == np.array([0, 0], dtype=int)).all():
+                    self.reward -= 10
+                self.last_move = direction
             case Actions.HIT.value:
                 if self._master_board[*self._agent_location] == Identifier.BOMB.value:
                     terminated = True
-                    # self.reward -= 1
+                    self.reward -= 100
                 self._reveal_cell(self._agent_location)
 
         if self._check_win():
@@ -115,10 +121,12 @@ class MinesweeperEnv(gym.Env):
         observation = self._get_obs()
         info = self._get_info()
 
+        if not np.any(np.all(self._agent_location == self.visited, axis=1)):
+            self.visited = np.append(self.visited, self._agent_location.reshape(1, -1), axis=0)
+            self.reward += 1
+
         if self.render_mode == "human":
             self._render_frame()
-
-        self.reward = -0.01 if self.reward == 0 else self.reward
 
         return observation, self.reward, terminated, False, info
 

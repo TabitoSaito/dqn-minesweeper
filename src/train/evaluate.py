@@ -11,7 +11,7 @@ def render_run(agent, env, run_name: str, max_steps: int = 0):
     score = 0
     frames = []
     i = 0
-    while not done and (i < max_steps or max_steps == 0):
+    while (i < max_steps or max_steps == 0):
         state = torch.tensor(state, dtype=torch.float32, device=device).unsqueeze(0)
         mask = torch.tensor(mask.reshape(1, -1), dtype=torch.bool, device=device)
 
@@ -25,6 +25,17 @@ def render_run(agent, env, run_name: str, max_steps: int = 0):
 
         reward = torch.tensor([reward], dtype=torch.float32, device=device)
         action = torch.tensor([[action]], dtype=torch.long, device=device)
+
+        if done:
+            if i <= 5:
+                state, info = env.reset()
+                mask = info["mask"]
+                done = False
+                score = 0
+                frames = []
+                i = 0
+            else:
+                break
 
     env.close()
     print(f"Closed with total Reward: {score:.2f}")
