@@ -14,7 +14,6 @@ class Actions(Enum):
     UP = 1
     LEFT = 2
     DOWN = 3
-    HIT = 4
 
 
 class Identifier(Enum):
@@ -104,17 +103,16 @@ class MinesweeperEnv(gym.Env):
                     self._agent_location + direction, 0, self.size - 1
                 )
                 if (direction + self.last_move == np.array([0, 0], dtype=int)).all():
-                    self.reward -= 10
+                    self.reward += -0.01
                 self.last_move = direction
-            case Actions.HIT.value:
                 if self._master_board[*self._agent_location] == Identifier.BOMB.value:
                     terminated = True
-                    self.reward -= 100
+                    self.reward += -1
                 self._reveal_cell(self._agent_location)
 
         if self._check_win():
             terminated = True
-            self.reward += 100
+            self.reward += 1
 
         self._update_mask()
 
@@ -123,7 +121,7 @@ class MinesweeperEnv(gym.Env):
 
         if not np.any(np.all(self._agent_location == self.visited, axis=1)):
             self.visited = np.append(self.visited, self._agent_location.reshape(1, -1), axis=0)
-            self.reward += 1
+            self.reward += 0.01
 
         if self.render_mode == "human":
             self._render_frame()
@@ -230,7 +228,7 @@ class MinesweeperEnv(gym.Env):
     def _soft_reveal_cell(self, cell):
         value = self._master_board[*cell]
         self._board[*cell] = value
-        self.reward += 5
+        self.reward += 0.05
         return value
     
     def _check_win(self):

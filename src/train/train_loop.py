@@ -37,6 +37,8 @@ class TrainLoop:
                     if t == 0 and done:
                         break
                     next_mask = info["mask"]
+                    if t >= self.maximum_number_timesteps_per_episode - 1:
+                        reward += -1
 
                     next_state = torch.tensor(next_state, dtype=torch.float32, device=self.device).unsqueeze(0)
                     reward = torch.tensor([reward], dtype=torch.float32, device=self.device)

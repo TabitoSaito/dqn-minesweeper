@@ -12,5 +12,12 @@ class MergeBoardAgent(ObservationWrapper):
         agent_board = np.zeros(board.shape)
         agent_board[*agent_position] = 1
 
-        stacked = np.stack((board, agent_board))
+        arrays = [agent_board]
+
+        for i in range(9):
+            temp = np.zeros(board.shape)
+            temp[board == i] = 1
+            arrays.append(temp)
+
+        stacked = np.stack(arrays)
         return stacked

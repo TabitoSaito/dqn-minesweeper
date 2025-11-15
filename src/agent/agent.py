@@ -68,7 +68,7 @@ class Agent:
         loss = criterion(q_expected, q_targets)
         self.optimizer.zero_grad()
         loss.backward()
-        torch.nn.utils.clip_grad_value_(self.local_qnetwork.parameters(), 100)
+        torch.nn.utils.clip_grad_norm_(self.local_qnetwork.parameters(), 10)
         self.optimizer.step()
 
         local_dict = self.local_qnetwork.state_dict()

@@ -15,9 +15,12 @@ num_bombs = 10
 env = MinesweeperEnv(size=board_size, num_bombs=num_bombs)
 env = MergeBoardAgent(env)
 
+board, _ = env.reset()
+
+
 number_actions = env.action_space.n
 
-network = Network(2, number_actions)
+network = Network(10, number_actions)
 
 agent = Agent(number_actions, config, network)
 
