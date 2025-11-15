@@ -13,7 +13,7 @@ class Network(nn.Module):
         self.fc3 = nn.Linear(128, action_size)
 
     def _init_fc(self):
-        x = torch.zeros(1, 10, 8, 8)   # (batch, channels, height, width)
+        x = torch.zeros(1, 9, 8, 8)   # (batch, channels, height, width)
         x = F.relu(self.conv1(x))
         x = F.relu(self.conv2(x))
         x = F.relu(self.conv3(x))

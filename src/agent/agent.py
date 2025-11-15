@@ -14,11 +14,16 @@ class Agent:
     def __init__(self, action_size, config, network) -> None:
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         self.action_size = action_size
-        self.local_qnetwork = network.to(self.device)
-        self.target_qnetwork = network.to(self.device)
-        self.optimizer = optim.AdamW(
-            self.local_qnetwork.parameters(), lr=config["LEARNING_RATE"], amsgrad=True
+
+        self.qnetwork1 = network.to(self.device)
+        self.qnetwork2 = network.to(self.device)
+        self.optimizer1 = optim.AdamW(
+            self.qnetwork1.parameters(), lr=config["LEARNING_RATE"], amsgrad=True
         )
+        self.optimizer2 = optim.AdamW(
+            self.qnetwork1.parameters(), lr=config["LEARNING_RATE"], amsgrad=True
+        )
+
         self.memory = ReplayMemory(config["REPLAY_BUFFER_SIZE"])
         self.t_step = 0
         self.config = config
@@ -41,11 +46,11 @@ class Agent:
                 self.learn(experiences, self.config["DISCOUNT_FACTOR"])
 
     def act(self, state: torch.Tensor, mask: np.ndarray, epsilon=0.0):
-        self.local_qnetwork.eval()
+        self.qnetwork1.eval()
         with torch.no_grad():
-            action_values = self.local_qnetwork(state)
+            action_values = self.qnetwork1(state)
             action_values[0][mask] = -1e9
-        self.local_qnetwork.train()
+        self.qnetwork1.train()
         if random.random() > epsilon:
             return np.argmax(action_values.cpu().data.numpy())
         else:
@@ -54,30 +59,66 @@ class Agent:
 
     def learn(self, experiences, discount_factor):
         states, next_states, actions, rewards, dones, masks, next_masks = experiences
-        next_q_targets = self.target_qnetwork(next_states).masked_fill(next_masks, -1e9)
-        next_q_targets = (
-            self.target_qnetwork(next_states).detach().max(1)[0].unsqueeze(1)
-        )
 
-        rewards = rewards.unsqueeze(1)
-        dones = dones.unsqueeze(1)
+        with torch.autograd.set_detect_anomaly(True):
 
-        q_targets = rewards + discount_factor * next_q_targets * (1 - dones)
-        q_expected = self.local_qnetwork(states).gather(1, actions)
-        criterion = nn.SmoothL1Loss()
-        loss = criterion(q_expected, q_targets)
-        self.optimizer.zero_grad()
-        loss.backward()
-        torch.nn.utils.clip_grad_norm_(self.local_qnetwork.parameters(), 10)
-        self.optimizer.step()
+            rewards = rewards.unsqueeze(1)
+            dones = dones.unsqueeze(1)
 
-        local_dict = self.local_qnetwork.state_dict()
-        target_dict = self.target_qnetwork.state_dict()
-        for key in local_dict:
-            target_dict[key] = local_dict[key] * self.config[
-                "UPDATE_RATE"
-            ] + target_dict[key] * (1 - self.config["UPDATE_RATE"])
-        self.target_qnetwork.load_state_dict(target_dict)
+            curr_Q1 = self.qnetwork1(states).masked_fill(masks, -1e9).gather(1, actions)
+            curr_Q2 = self.qnetwork2(states).masked_fill(masks, -1e9).gather(1, actions)
+
+            next_Q1 = self.qnetwork1(next_states).masked_fill(next_masks, -1e9)
+            next_Q2 = self.qnetwork2(next_states).masked_fill(next_masks, -1e9)
+
+            next_Q = torch.min(
+                torch.max(next_Q1, 1)[0],
+                torch.max(next_Q2, 1)[0]
+            )
+
+            next_Q = next_Q.view(next_Q.size(0), 1)
+            expected_Q = rewards + discount_factor * next_Q * (1 - dones)
+
+            criterion = nn.SmoothL1Loss()
+            loss1 = criterion(curr_Q1, expected_Q.detach())
+            loss2 = criterion(curr_Q2, expected_Q.detach())
+
+            self.optimizer1.zero_grad()
+            loss1.backward()
+            torch.nn.utils.clip_grad_norm_(self.qnetwork1.parameters(), 10)
+
+            self.optimizer2.zero_grad()
+            loss2.backward()
+            torch.nn.utils.clip_grad_norm_(self.qnetwork2.parameters(), 10)
+            
+            self.optimizer1.step()
+            self.optimizer2.step()
+
+
+        # next_q_targets = self.qnetwork2(next_states).masked_fill(next_masks, -1e9)
+        # next_q_targets = (
+        #     self.qnetwork2(next_states).detach().max(1)[0].unsqueeze(1)
+        # )
+
+        # rewards = rewards.unsqueeze(1)
+        # dones = dones.unsqueeze(1)
+
+        # q_targets = rewards + discount_factor * next_q_targets * (1 - dones)
+        # q_expected = self.qnetwork1(states).gather(1, actions)
+        # criterion = nn.SmoothL1Loss()
+        # loss = criterion(q_expected, q_targets)
+        # self.optimizer1.zero_grad()
+        # loss.backward()
+        # torch.nn.utils.clip_grad_norm_(self.qnetwork1.parameters(), 10)
+        # self.optimizer1.step()
+
+        # local_dict = self.qnetwork1.state_dict()
+        # target_dict = self.qnetwork2.state_dict()
+        # for key in local_dict:
+        #     target_dict[key] = local_dict[key] * self.config[
+        #         "UPDATE_RATE"
+        #     ] + target_dict[key] * (1 - self.config["UPDATE_RATE"])
+        # self.qnetwork2.load_state_dict(target_dict)
 
     def save(
         self,
@@ -87,9 +128,9 @@ class Agent:
         file_name = name if name else "checkpoint"
         temp = f"src/checkpoint/{file_name}.tmp"
         checkpoint = {
-            "local_model_state_dict": self.local_qnetwork.state_dict(),
-            "target_model_state_dict": self.target_qnetwork.state_dict(),
-            "optimizer_state_dict": self.optimizer.state_dict(),
+            "local_model_state_dict": self.qnetwork1.state_dict(),
+            "target_model_state_dict": self.qnetwork2.state_dict(),
+            "optimizer_state_dict": self.optimizer1.state_dict(),
             "epsilon": epsilon,
         }
 
@@ -105,12 +146,12 @@ class Agent:
         with open(path, "rb") as f:
             checkpoint, buffer = pickle.load(f)
 
-        self.local_qnetwork.load_state_dict(checkpoint["local_model_state_dict"])
-        self.target_qnetwork.load_state_dict(checkpoint["target_model_state_dict"])
+        self.qnetwork1.load_state_dict(checkpoint["local_model_state_dict"])
+        self.qnetwork2.load_state_dict(checkpoint["target_model_state_dict"])
 
-        self.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+        self.optimizer1.load_state_dict(checkpoint["optimizer_state_dict"])
 
-        for state in self.optimizer.state.values():
+        for state in self.optimizer1.state.values():
             for k, v in state.items():
                 if isinstance(v, torch.Tensor):
                     state[k] = v.to(self.device)
