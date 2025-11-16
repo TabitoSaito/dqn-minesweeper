@@ -6,6 +6,7 @@ import numpy as np
 import random
 import pickle
 import os
+import copy
 
 from buffer.buffer import ReplayMemory
 
@@ -16,7 +17,8 @@ class Agent:
         self.action_size = action_size
 
         self.qnetwork_online = network.to(self.device)
-        self.qnetwork_target = network.to(self.device)
+        self.qnetwork_target = copy.deepcopy(network).to(self.device)
+
         self.optimizer = optim.AdamW(
             self.qnetwork_online.parameters(), lr=config["LEARNING_RATE"], amsgrad=True
         )
@@ -49,10 +51,10 @@ class Agent:
         self.qnetwork_online.eval()
         with torch.no_grad():
             action_values = self.qnetwork_online(state)
-            action_values[0][mask] = -1e9
+            action_values[0].masked_fill_(mask, -1e9)
         self.qnetwork_online.train()
         if random.random() > epsilon:
-            return np.argmax(action_values.cpu().data.numpy())
+            return np.argmax(action_values[0].cpu().numpy())
         else:
             valid_actions = np.where(~mask)[0]
             return random.choice(valid_actions)

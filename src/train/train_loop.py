@@ -16,8 +16,10 @@ class TrainLoop:
         self.epsilon_decay_value = config["EPSILON_DECAY_VALUE"]
         self.epsilon = self.epsilon_starting_value
         self.scores_on_100_episodes = deque(maxlen=100)
-        self.timesteps_on_100_episodes = deque(maxlen=100)
         self.wins_on_100_episodes = deque(maxlen=100)
+
+        self.score_trend = []
+        self.win_trend = []
 
     def start_loop(self, agent: Agent, env: MinesweeperEnv, save_name = None, dyn_print = False, print_every = 100):
         print("Start Training")
@@ -50,20 +52,39 @@ class TrainLoop:
                     if done:
                         break
                 self.scores_on_100_episodes.append(score)
-                self.timesteps_on_100_episodes.append(t)
                 self.wins_on_100_episodes.append(int(info["win"]))
                 self.epsilon = max(
                     self.epsilon_ending_value, self.epsilon_decay_value * self.epsilon
                 )
                 if dyn_print:
                     print(
-                        f"\rEpisode {episode}\tAverage Score: {np.mean(self.scores_on_100_episodes):.2f}\tWin Rate: {np.mean(self.wins_on_100_episodes)}",
+                        f"\rEpisode {episode}\t\tAverage Score: {np.mean(self.scores_on_100_episodes):.2f}\t\tWin Rate: {np.mean(self.wins_on_100_episodes) * 100:.2f}%",
                         end="",
                     )
                 if episode % print_every == 0:
                     print(
-                        f"\rEpisode {episode}\tAverage Score: {np.mean(self.scores_on_100_episodes):.2f}"
+                        f"\rEpisode {episode}\t\tAverage Score: {np.mean(self.scores_on_100_episodes):.2f}\t\tWin Rate: {np.mean(self.wins_on_100_episodes) * 100:.2f}%"
                     )
+                    self.score_trend.append(np.mean(self.scores_on_100_episodes))
+                    self.win_trend.append(np.mean(self.wins_on_100_episodes))
+                
+                if episode % 1000 == 0:
+                    score_trend_value = 0.0
+                    win_trend_value = 0.0
+
+                    if len(self.score_trend) >= 2:
+                        x = np.arange(len(self.score_trend))
+                        slope = np.polyfit(x, self.score_trend, 1)[0]
+                        score_trend_value = slope
+
+                    if len(self.win_trend) >= 2:
+                        x = np.arange(len(self.win_trend))
+                        slope_win = np.polyfit(x, self.win_trend, 1)[0]
+                        win_trend_value = slope_win
+
+                    print(f"\rScore Trend: {score_trend_value:.6f}\t\tWin Trend: {win_trend_value * 100:.4f}%")
+                    
+
         except KeyboardInterrupt:
             pass
 
@@ -72,4 +93,4 @@ class TrainLoop:
 
         save_name = save_name if save_name else "checkpoint"
         agent.save(self.epsilon, save_name)
-        print(f"\rAgent saved under 'src/checkpoint/{save_name}.tar'")
+        print(f"\rAgent saved under 'src/checkpoint/{save_name}.pkl'")

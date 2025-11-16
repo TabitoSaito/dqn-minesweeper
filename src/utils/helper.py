@@ -1,6 +1,6 @@
 import random
 
-def generate_unique_coordinates(n, upper_bound, lower_bound = 0):
+def generate_unique_coordinates(n, upper_bound, lower_bound = 0, except_ = []):
     cords = []
 
     for _ in range(n):
@@ -10,6 +10,8 @@ def generate_unique_coordinates(n, upper_bound, lower_bound = 0):
 
             cord = [x, y]
             if cord in cords:
+                continue
+            elif cord[0] == except_[0] and cord[1] == except_[1]:
                 continue
             else:
                 cords.append(cord)

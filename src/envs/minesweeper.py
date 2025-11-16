@@ -63,8 +63,6 @@ class MinesweeperEnv(gym.Env):
         self._board.fill(Identifier.UNREVEALED.value)
         self._master_board.fill(0)
 
-        self._setup_master_board()
-
         self._update_mask()
         self.win = False
 
@@ -78,16 +76,19 @@ class MinesweeperEnv(gym.Env):
 
     def step(self, action):
         self._terminated = False
-        self.reward = -0.01
+        self.reward = -0.001
         
         row = int(action / self._board.shape[0])
         col = action % self._board.shape[1]
+
+        if np.all(self._master_board == 0):
+            self._setup_master_board([row, col])
 
         self._reveal_cell(np.array([row, col]))
 
         if self._check_win():
             self._terminated = True
-            self.reward += 1
+            self.reward += 2
 
         self._update_mask()
 
@@ -163,8 +164,9 @@ class MinesweeperEnv(gym.Env):
             pygame.display.quit()
             pygame.quit()
 
-    def _setup_master_board(self):
-        bomb_index = helper.generate_unique_coordinates(self.num_bombs, self.size - 1)
+    def _setup_master_board(self, hit_pos):
+        bomb_index = helper.generate_unique_coordinates(self.num_bombs, self.size - 1, lower_bound=0, except_=hit_pos)
+        # bomb_index = [[4, 3, 5, 1, 1], [7, 5, 2, 6, 6]]
 
         self._master_board[*bomb_index] = Identifier.BOMB.value
         temp = np.pad(self._master_board, pad_width=1, mode="constant")
@@ -201,7 +203,7 @@ class MinesweeperEnv(gym.Env):
     def _soft_reveal_cell(self, cell):
         value = self._master_board[*cell]
         self._board[*cell] = value
-        self.reward += 0.02
+        self.reward += 0.01
         return value
     
     def _check_win(self):
