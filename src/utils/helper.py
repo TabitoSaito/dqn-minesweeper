@@ -1,12 +1,12 @@
 import random
 
-def generate_unique_coordinates(n, upper_bound, lower_bound = 0, except_ = []):
+def generate_unique_coordinates(n, upper_bound_x, upper_bound_y, lower_bound_x = 0, lower_bound_y = 0, except_ = []):
     cords = []
 
     for _ in range(n):
         while True:
-            x = random.randint(lower_bound, upper_bound)
-            y = random.randint(lower_bound, upper_bound)
+            x = random.randint(lower_bound_x, upper_bound_x)
+            y = random.randint(lower_bound_y, upper_bound_y)
 
             cord = [x, y]
             if cord in cords:

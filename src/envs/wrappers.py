@@ -1,20 +1,43 @@
 from gymnasium import Env, ObservationWrapper
 from typing import Any
 import numpy as np
+from collections import deque
 
 class MergeBoardAgent(ObservationWrapper):
-    def __init__(self, env: Env):
+    def __init__(self, env: Env, stack_size = 4):
         super().__init__(env)
+        self.stack = deque(maxlen=stack_size * 10)
+        self.stack_size = stack_size
 
     def observation(self, observation: Any) -> Any:
         board = observation["board"]
 
-        arrays = []
+        temp_arrays = []
 
         for i in range(9):
             temp = np.zeros(board.shape)
             temp[board == i] = 1
-            arrays.append(temp)
+            temp_arrays.append(temp)
 
-        stacked = np.stack(arrays)
+        neighbors = np.zeros(board.shape)
+        temp = [np.pad(array, pad_width=1, mode="constant") for array in temp_arrays]
+        for x in range(neighbors.shape[0]):
+            for y in range(neighbors.shape[1]):
+                count = 0
+                for a in temp:
+                    min_array = a[x : x + 3, y : y + 3]
+                    count += abs(np.sum(min_array))
+                neighbors[x, y] = count
+
+        temp_arrays.append(neighbors)
+
+        if len(self.stack) < self.stack_size * 10:
+            for i in range(self.stack_size):
+                for a in temp_arrays:
+                    self.stack.append(a)
+
+        for a in temp_arrays:
+            self.stack.append(a)
+        
+        stacked = np.stack(self.stack)
         return stacked

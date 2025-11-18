@@ -9,8 +9,8 @@ from envs.wrappers import MergeBoardAgent
 with open("configs/default.yaml") as stream:
     config = yaml.safe_load(stream)
 
-board_size = 8
-num_bombs = 10
+board_size = (8, 8)
+num_bombs = 4
 
 env = MinesweeperEnv(size=board_size, num_bombs=num_bombs)
 env = MergeBoardAgent(env)
@@ -19,7 +19,7 @@ board, _ = env.reset()
 
 number_actions = env.action_space.n
 
-network = Network(9, number_actions)
+network = Network(10 * 4, number_actions)
 
 agent = Agent(number_actions, config, network)
 
