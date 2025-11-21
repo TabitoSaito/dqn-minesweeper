@@ -9,15 +9,15 @@ import copy
 from collections import deque
 
 from buffer.buffer import ReplayMemory
+from utils.constants import DEVICE
 
 
 class Agent:
     def __init__(self, action_size, config, network) -> None:
-        self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         self.action_size = action_size
 
-        self.qnetwork_online = network.to(self.device)
-        self.qnetwork_target = copy.deepcopy(network).to(self.device)
+        self.qnetwork_online = network.to(DEVICE)
+        self.qnetwork_target = copy.deepcopy(network).to(DEVICE)
 
         self.optimizer = optim.AdamW(
             self.qnetwork_online.parameters(), lr=config["LEARNING_RATE"], amsgrad=True
@@ -117,7 +117,7 @@ class Agent:
         name=None,
     ):
         file_name = name if name else "checkpoint"
-        temp = f"src/checkpoint/{file_name}.tmp"
+        temp = f"src/checkpoint/dqn/{file_name}.tmp"
         checkpoint = {
             "local_model_state_dict": self.qnetwork_online.state_dict(),
             "target_model_state_dict": self.qnetwork_target.state_dict(),
@@ -127,11 +127,11 @@ class Agent:
 
         with open(temp, "wb") as f:
             pickle.dump((checkpoint, self.memory), f)
-        os.replace(temp, f"src/checkpoint/{file_name}.pkl")
+        os.replace(temp, f"src/checkpoint/dqn/{file_name}.pkl")
 
     def load(self, name=None):
         file_name = name if name else "checkpoint"
-        path = f"src/checkpoint/{file_name}.pkl"
+        path = f"src/checkpoint/dqn/{file_name}.pkl"
         if not os.path.exists(path):
             raise FileNotFoundError(path)
         with open(path, "rb") as f:
@@ -145,7 +145,7 @@ class Agent:
         for state in self.optimizer.state.values():
             for k, v in state.items():
                 if isinstance(v, torch.Tensor):
-                    state[k] = v.to(self.device)
+                    state[k] = v.to(DEVICE)
 
         self.memory = buffer
         return checkpoint["epsilon"]

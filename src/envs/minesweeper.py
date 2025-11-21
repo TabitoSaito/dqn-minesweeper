@@ -1,5 +1,3 @@
-from enum import Enum
-
 import numpy as np
 import pygame
 
@@ -7,19 +5,7 @@ import gymnasium as gym
 from gymnasium import spaces
 
 import utils.helper as helper
-
-
-class Actions(Enum):
-    RIGHT = 0
-    UP = 1
-    LEFT = 2
-    DOWN = 3
-
-
-class Identifier(Enum):
-    NOTHING = 0
-    BOMB = -1
-    UNREVEALED = -2
+from utils.constants import Identifier
 
 
 class MinesweeperEnv(gym.Env):
@@ -28,6 +14,7 @@ class MinesweeperEnv(gym.Env):
     def __init__(self, render_mode=None, size=(8, 8), num_bombs=10) -> None:
         self.size = size
         self.num_bombs = num_bombs
+        self.bomb_index = []
         self.window_size = size[0] * 50, size[1] * 50
 
         self.observation_space = spaces.Dict(
@@ -54,7 +41,26 @@ class MinesweeperEnv(gym.Env):
         return {"board": self._board}
 
     def _get_info(self):
-        return {"mask": self._mask, "win": self.win}
+        return {
+            "mask": self._mask,
+            "master_board": self._master_board,
+            "board": self._board,
+            "save_actions": self._get_save_actions(),
+            "bomb_actions": self._get_bomb_actions(),
+            "win": self._check_win()
+        }
+
+    def _get_save_actions(self):
+        return np.where(
+            (self._board.flatten() == Identifier.UNREVEALED.value)
+            & (self._master_board.flatten() != Identifier.BOMB.value)
+        )
+
+    def _get_bomb_actions(self):
+        return np.where(
+            (self._board.flatten() == Identifier.UNREVEALED.value)
+            & (self._master_board.flatten() == Identifier.BOMB.value)
+        )
 
     def reset(self, seed=None, options=None):
         super().reset(seed=seed)
@@ -74,12 +80,14 @@ class MinesweeperEnv(gym.Env):
 
         return observation, info
 
-    def step(self, action):
+    def step(self, action):  # if action == -1, performs a random action that is save
         self._terminated = False
         self.reward = 0.01
-        
-        row = int(action / self._board.shape[0])
-        col = action % self._board.shape[1]
+
+        if action == -1:
+            action = np.random.choice(self._get_save_actions()[0])
+
+        row, col = helper.action_to_index(action, self._board.shape)
 
         if np.all(self._master_board == 0):
             self._setup_master_board([row, col])
@@ -102,22 +110,28 @@ class MinesweeperEnv(gym.Env):
 
         return observation, self.reward, self._terminated, False, info
 
+    def safe_step(self):
+        temp = self._master_board.flatten()
+        return temp
+
     def render(self):
         if self.render_mode == "rgb_array":
             return self._render_frame()
-        
+
     def _render_frame(self):
         if self.window is None and self.render_mode == "human":
             pygame.init()
             pygame.display.init()
-            self.window = pygame.display.set_mode((self.window_size[0], self.window_size[1]))
-           
+            self.window = pygame.display.set_mode(
+                (self.window_size[0], self.window_size[1])
+            )
+
         if self.clock is None and self.render_mode == "human":
             self.clock = pygame.time.Clock()
 
         if self.font is None and self.render_mode in self.metadata["render_modes"]:
             pygame.font.init()
-            self.font = pygame.font.SysFont('Comic Sans MS', 30)
+            self.font = pygame.font.SysFont("Comic Sans MS", 30)
 
         canvas = pygame.Surface((self.window_size[0], self.window_size[1]))
         canvas.fill((255, 255, 255))
@@ -146,7 +160,10 @@ class MinesweeperEnv(gym.Env):
                 if value != Identifier.UNREVEALED.value:
                     text_surf = self.font.render(str(value), False, (0, 0, 0))
                     text_rect = text_surf.get_rect()
-                    text_rect.center = (int(pix_square_size * x + pix_square_size / 2), int(pix_square_size * y + pix_square_size / 2))
+                    text_rect.center = (
+                        int(pix_square_size * x + pix_square_size / 2),
+                        int(pix_square_size * y + pix_square_size / 2),
+                    )
                     canvas.blit(text_surf, dest=text_rect)
 
         if self.render_mode == "human":
@@ -157,8 +174,8 @@ class MinesweeperEnv(gym.Env):
             self.clock.tick(self.metadata["render_fps"])
         else:
             return np.transpose(
-            np.array(pygame.surfarray.pixels3d(canvas)), axes=(1, 0, 2)
-        )
+                np.array(pygame.surfarray.pixels3d(canvas)), axes=(1, 0, 2)
+            )
 
     def close(self):
         if self.window is not None:
@@ -166,9 +183,11 @@ class MinesweeperEnv(gym.Env):
             pygame.quit()
 
     def _setup_master_board(self, hit_pos):
-        bomb_index = helper.generate_unique_coordinates(self.num_bombs, self.size[0] - 1, self.size[1] - 1, except_=hit_pos)
+        self.bomb_index = helper.generate_unique_coordinates(
+            self.num_bombs, self.size[0] - 1, self.size[1] - 1, except_=hit_pos
+        )
 
-        self._master_board[*bomb_index] = Identifier.BOMB.value
+        self._master_board[*self.bomb_index] = Identifier.BOMB.value
         temp = np.pad(self._master_board, pad_width=1, mode="constant")
         for x in range(self._master_board.shape[0]):
             for y in range(self._master_board.shape[1]):
@@ -204,19 +223,19 @@ class MinesweeperEnv(gym.Env):
                     counter += 1
             if counter == 4:
                 self.reward += -0.01
-                    
+
             del cells[0]
 
     def _soft_reveal_cell(self, cell):
         value = self._master_board[*cell]
         self._board[*cell] = value
         return value
-    
+
     def _check_win(self):
         unrevealed = sum(sum(self._board == Identifier.UNREVEALED.value))
         self.win = unrevealed == self.num_bombs
         return self.win
-    
+
     def _update_mask(self):
         self._mask = np.zeros(self.action_space.n, dtype=bool)
         temp = self._board.reshape(1, -1)

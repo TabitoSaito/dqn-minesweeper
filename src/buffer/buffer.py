@@ -1,6 +1,7 @@
 import torch
 from typing import NamedTuple, Any
 import numpy as np
+from utils.constants import DEVICE
 
 class Experiences(NamedTuple):
     state: Any
@@ -13,7 +14,6 @@ class Experiences(NamedTuple):
 
 class ReplayMemory:
     def __init__(self, capacity, alpha) -> None:
-        self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         self.capacity = capacity
         self.memory = []
         self.alpha = alpha
@@ -44,7 +44,7 @@ class ReplayMemory:
         total = len(self.memory)
         weights = (total * probs[indices]) ** (-beta)
         weights = weights / weights.max()
-        weights = torch.as_tensor(weights, dtype=torch.float32).unsqueeze(1).to(self.device)
+        weights = torch.as_tensor(weights, dtype=torch.float32).unsqueeze(1).to(DEVICE)
 
         state_batch = torch.cat(batch.state)
         next_state_batch = torch.cat(batch.next_state)

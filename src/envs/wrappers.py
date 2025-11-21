@@ -3,11 +3,12 @@ from typing import Any
 import numpy as np
 from collections import deque
 
-class MergeBoardAgent(ObservationWrapper):
+class OneHotEncodeBoardStacked(ObservationWrapper):
     def __init__(self, env: Env, stack_size = 4):
         super().__init__(env)
-        self.stack = deque(maxlen=stack_size * 10)
-        self.stack_size = stack_size
+        self.channels = 10
+        self.stack = deque(maxlen=stack_size * self.channels)
+        self.stack_size = stack_size 
 
     def observation(self, observation: Any) -> Any:
         board = observation["board"]
@@ -31,7 +32,7 @@ class MergeBoardAgent(ObservationWrapper):
 
         temp_arrays.append(neighbors)
 
-        if len(self.stack) < self.stack_size * 10:
+        if len(self.stack) < self.stack_size * self.channels:
             for i in range(self.stack_size):
                 for a in temp_arrays:
                     self.stack.append(a)

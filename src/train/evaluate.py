@@ -1,9 +1,9 @@
 import cv2
 import torch
+from utils.constants import DEVICE
 
 def render_run(agent, env, run_name: str, max_steps: int = 0, runs: int = 10):
     assert env.render_mode in ["human", "rgb_array"]
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
     for i in range(runs):
         state, info = env.reset()
@@ -13,8 +13,8 @@ def render_run(agent, env, run_name: str, max_steps: int = 0, runs: int = 10):
         frames = []
         j = 0
         while (j < max_steps or max_steps == 0):
-            state = torch.tensor(state, dtype=torch.float32, device=device).unsqueeze(0)
-            mask = torch.tensor(mask.reshape(1, -1), dtype=torch.bool, device=device)
+            state = torch.tensor(state, dtype=torch.float32, device=DEVICE).unsqueeze(0)
+            mask = torch.tensor(mask.reshape(1, -1), dtype=torch.bool, device=DEVICE)
 
             j += 1
             frame = env.render()
@@ -23,9 +23,6 @@ def render_run(agent, env, run_name: str, max_steps: int = 0, runs: int = 10):
             state, reward, done, _, info = env.step(action.item())
             mask = info["mask"]
             score += reward
-
-            reward = torch.tensor([reward], dtype=torch.float32, device=device)
-            action = torch.tensor([[action]], dtype=torch.long, device=device)
 
             if done:
                 break
@@ -38,5 +35,35 @@ def render_run(agent, env, run_name: str, max_steps: int = 0, runs: int = 10):
         out = cv2.VideoWriter(f'src/replays/{run_name}_{i + 1}.mp4', fourcc, env.metadata["render_fps"], (frame.shape[0], frame.shape[1]))
         for frame in frames:
             out.write(frame)
+        out.release()
         print(f"saved video under src/replays/{run_name}_{i + 1}.mp4")
     env.close()
+
+def eval_winrate(agent, env, max_steps: int = 0, runs: int = 50):
+    wins = 0
+    total_r = 0
+    for i in range(runs):
+        print(f"\r{i + 1}/{runs}", end="")
+        state, info = env.reset()
+        mask = info["mask"]
+        done = False
+        score = 0
+        j = 0
+        while (j < max_steps or max_steps == 0):
+            state = torch.tensor(state, dtype=torch.float32, device=DEVICE).unsqueeze(0)
+            mask = torch.tensor(mask.reshape(1, -1), dtype=torch.bool, device=DEVICE)
+            j += 1
+            action = agent.act(state, mask=mask[0])
+            state, reward, done, _, info = env.step(action.item())
+            mask = info["mask"]
+            score += reward
+
+            if done:
+                break
+
+        if info["win"]:
+            wins += 1
+        total_r += score
+
+    print()
+    print(f"Avg. Reward: {total_r/runs:.4f}\tWinrate: {(wins/runs) * 100}%")

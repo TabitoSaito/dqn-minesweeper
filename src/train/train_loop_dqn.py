@@ -1,13 +1,13 @@
 from collections import deque
 import numpy as np
-from agent.agent import Agent
+from agent.dqn_agent import Agent
 from envs.minesweeper import MinesweeperEnv
 import torch
 import matplotlib.pyplot as plt
+from utils.constants import DEVICE
 
 class TrainLoop:
     def __init__(self, config, epsilon=None) -> None:
-        self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         self.number_episodes = config["NUMBER_EPISODES"]
         self.maximum_number_timesteps_per_episode = config[
             "MAXIMUM_NUMBER_TIMESTEPS_PER_EPISODE"
@@ -46,8 +46,8 @@ class TrainLoop:
                 state, info = env.reset()
                 mask = info["mask"]
 
-                state = torch.tensor(state, dtype=torch.float32, device=self.device).unsqueeze(0)
-                mask = torch.tensor(mask.reshape(1, -1), dtype=torch.bool, device=self.device)
+                state = torch.tensor(state, dtype=torch.float32, device=DEVICE).unsqueeze(0)
+                mask = torch.tensor(mask.reshape(1, -1), dtype=torch.bool, device=DEVICE)
 
                 score = 0
                 for t in range(self.maximum_number_timesteps_per_episode):
@@ -56,11 +56,11 @@ class TrainLoop:
                     next_mask = info["mask"]
                     score += reward
 
-                    next_state = torch.tensor(next_state, dtype=torch.float32, device=self.device).unsqueeze(0)
-                    reward = torch.tensor([reward], dtype=torch.float32, device=self.device)
-                    done = torch.tensor([done], dtype=torch.long, device=self.device)
-                    next_mask = torch.tensor(next_mask.reshape(1, -1), dtype=torch.bool, device=self.device)
-                    action = torch.tensor([[action]], dtype=torch.long, device=self.device)
+                    next_state = torch.tensor(next_state, dtype=torch.float32, device=DEVICE).unsqueeze(0)
+                    reward = torch.tensor([reward], dtype=torch.float32, device=DEVICE)
+                    done = torch.tensor([done], dtype=torch.long, device=DEVICE)
+                    next_mask = torch.tensor(next_mask.reshape(1, -1), dtype=torch.bool, device=DEVICE)
+                    action = torch.tensor([[action]], dtype=torch.long, device=DEVICE)
 
                     agent.step(state, action, reward, next_state, done, mask, next_mask)
                     state = next_state

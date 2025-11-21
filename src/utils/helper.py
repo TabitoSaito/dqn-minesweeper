@@ -1,6 +1,9 @@
 import random
 
-def generate_unique_coordinates(n, upper_bound_x, upper_bound_y, lower_bound_x = 0, lower_bound_y = 0, except_ = []):
+
+def generate_unique_coordinates(
+    n, upper_bound_x, upper_bound_y, lower_bound_x=0, lower_bound_y=0, except_=[]
+):
     cords = []
 
     for _ in range(n):
@@ -18,10 +21,16 @@ def generate_unique_coordinates(n, upper_bound_x, upper_bound_y, lower_bound_x =
                 break
     return list(map(list, zip(*cords)))
 
+
 def index_in_bound(index: tuple[int, int], bound: tuple[int, int]):
     if not 0 <= index[0] < bound[0]:
         return False
     if not 0 <= index[1] < bound[1]:
         return False
     return True
-    
+
+
+def action_to_index(action, shape: tuple):
+    row = int(action / shape[0])
+    col = action % shape[1]
+    return (row, col)
