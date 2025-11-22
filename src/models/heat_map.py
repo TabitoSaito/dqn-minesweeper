@@ -4,11 +4,13 @@ import torch.optim as optim
 import os
 from envs.minesweeper import MinesweeperEnv
 from utils.constants import DEVICE
-from sklearn.model_selection import train_test_split
 from sklearn.metrics import confusion_matrix, accuracy_score
 import numpy as np
 import utils.helper as helper
 import pickle
+from webdataset.writer import ShardWriter
+import uuid
+from tqdm import tqdm
 
 
 class BombHeatMap:
@@ -37,39 +39,51 @@ class BombHeatMap:
                 confidence_matrix[:, x, y] = prediction_percent
         return confidence_matrix
 
-    def train(self, dataset_name, epochs: int = 5, mini_batch_size: int = 100):
-        if os.path.exists(f"src/data/{dataset_name}.pt"):
-            dataset = torch.load(f"src/data/{dataset_name}.pt")
-            data = dataset["data"]
-            labels = dataset["labels"]
+    def train(self, dataset_name, epochs: int = 5, mini_batch_size: int = 128):
+        train_loader = helper.make_loader(
+            f"src/data/{dataset_name}/train/" + "shard-*.tar",
+            batch_size=mini_batch_size,
+            shuffle=True,
+        )
 
-            X_train, X_test, y_train, y_test = train_test_split(
-                data, labels, test_size=0.20
-            )
-
-            data_batches = X_train.split(mini_batch_size, dim=0)
-            label_batches = y_train.split(mini_batch_size, dim=0)
-        else:
-            raise FileNotFoundError(f"No dataset with name {dataset_name}.")
-        for epoch in range(epochs):
-            print(f"\repoch {epoch}/{epochs}", end="")
-            for data_batch, label_batch in zip(data_batches, label_batches):
+        for epoch in tqdm(range(epochs), desc="Training", unit="epochs"):
+            for data_batch, label_batch in train_loader:
                 self.optimizer.zero_grad()
                 output = self.net(data_batch)
                 output = F.softmax(output, dim=1)
+                output = output[:, 1]
+
+                label_batch = label_batch.type(torch.float32)
 
                 loss = F.cross_entropy(output, label_batch)
                 loss.backward()
 
                 self.optimizer.step()
 
-        print()
         print("training finished")
+
+    def evaluate(self, dataset_name, mini_batch_size=128):
         print("evaluate model")
+
+        test_loader = helper.make_loader(
+            f"src/data/{dataset_name}/test/" + "shard-*.tar",
+            batch_size=mini_batch_size,
+            shuffle=False,
+        )
+
         with torch.no_grad():
-            y_pred = self.net(X_test)
-            y_pred = y_pred.max(dim=1)[1]
-            y_test = y_test.max(dim=1)[1]
+            y_preds = []
+            y_tests = []
+            for data_batch, label_batch in test_loader:
+                output = self.net(data_batch)
+                y_pred = output.max(dim=1)[1]
+                y_test = label_batch
+
+                y_preds.append(y_pred)
+                y_tests.append(y_test)
+
+            y_pred = torch.cat(y_preds)
+            y_test = torch.cat(y_tests)
 
             cm = confusion_matrix(y_test, y_pred)
             print(cm)
@@ -84,6 +98,7 @@ class BombHeatMap:
         labels = dataset["labels"]
         return data, labels
 
+    # TODO make YAML file for dataset to save config
     def append_to_dataset(
         self,
         env: MinesweeperEnv,
@@ -93,40 +108,44 @@ class BombHeatMap:
         bombs_per_iter: int = 10,
         saves_per_iter: int = 10,
     ):
-        if os.path.exists(f"src/data/{dataset_name}.pt"):
-            dataset = torch.load(f"src/data/{dataset_name}.pt")
-            data = dataset["data"]
-            labels = dataset["labels"]
-        else:
-            data = torch.empty(0)
-            labels = torch.empty(0)
+        os.makedirs(f"src/data/{dataset_name}/train/", exist_ok=True)
+        os.makedirs(f"src/data/{dataset_name}/test/", exist_ok=True)
 
-        new_data = []
-        new_labels = []
+        train_pattern = f"src/data/{dataset_name}/train/" + "shard-%05d.tar"
+        test_pattern = f"src/data/{dataset_name}/test/" + "shard-%05d.tar"
 
-        for episode in range(repeats):
+        train_shard = helper.find_next_shard_id(train_pattern)
+        test_shard = helper.find_next_shard_id(test_pattern)
+
+        train_writer = ShardWriter(
+            f"src/data/{dataset_name}/train/" + "shard-%05d.tar",
+            maxcount=100000,
+            start_shard=train_shard,
+            verbose=0
+        )
+        test_writer = ShardWriter(
+            f"src/data/{dataset_name}/test/" + "shard-%05d.tar",
+            maxcount=100000,
+            start_shard=test_shard,
+            verbose=0
+        )
+
+        for episode in tqdm(range(repeats), desc="Appending to dataset", unit="games"):
             env.reset()
             next_state, _, done, _, info = env.step(-1)
             state = next_state
             done = False
             stop = False
             while not done and not stop:
-                state = torch.tensor(
-                    state, dtype=torch.float32, device=DEVICE
-                ).unsqueeze(0)
-                temp = F.pad(
-                    input=state,
-                    pad=(
-                        kernel_size,
-                        kernel_size,
-                        kernel_size,
-                        kernel_size,
-                        0,
-                        0,
-                        0,
-                        0,
-                    ),
-                    value=-1,
+                temp = np.pad(
+                    state,
+                    pad_width=[
+                        (0, 0),
+                        (kernel_size, kernel_size),
+                        (kernel_size, kernel_size),
+                    ],
+                    mode="constant",
+                    constant_values=-1,
                 )
 
                 master_board = info["master_board"]
@@ -144,46 +163,37 @@ class BombHeatMap:
                     x, y = x + kernel_size, y + kernel_size
                     min_array = temp[
                         :,
-                        :,
                         x - (kernel_size) : x + (kernel_size + 1),
                         y - (kernel_size) : y + (kernel_size + 1),
                     ]
-                    new_data.append(min_array)
-                    label = torch.tensor([0, 1]).unsqueeze(0)
-                    new_labels.append(label)
+                    label = 0
+
+                    key = f"s-{uuid.uuid4().hex}"
+                    split = helper.split_from_key(key)
+                    sink = {"train": train_writer, "test": test_writer}[split]
+                    sink.write(
+                        {"__key__": key, "npy": min_array, "cls": str(label).encode()}
+                    )
 
                 for action in bomb_sample:
                     x, y = helper.action_to_index(action, master_board.shape)
                     x, y = x + kernel_size, y + kernel_size
                     min_array = temp[
                         :,
-                        :,
                         x - (kernel_size) : x + (kernel_size + 1),
                         y - (kernel_size) : y + (kernel_size + 1),
                     ]
-                    new_data.append(min_array)
-                    label = torch.tensor([1, 0]).unsqueeze(0)
-                    new_labels.append(label)
+                    label = 1
+
+                    key = f"b-{uuid.uuid4().hex}"
+                    split = helper.split_from_key(key)
+                    sink = {"train": train_writer, "test": test_writer}[split]
+                    sink.write(
+                        {"__key__": key, "npy": min_array, "cls": str(label).encode()}
+                    )
 
                 next_state, _, done, _, info = env.step(-1)
-                state = torch.tensor(next_state, dtype=torch.float32, device=DEVICE)
-
-            if episode % 5000 == 0:
-                data = torch.cat([data] + new_data, dim=0)
-                labels = torch.cat([labels] + new_labels, dim=0)
-                new_data = []
-                new_labels = []
-
-            print(f"\rGame: {episode + 1}/{repeats}", end="")
-
-        data = torch.cat([data] + new_data, dim=0)
-        labels = torch.cat([labels] + new_labels, dim=0)
-
-        torch.save({"data": data, "labels": labels}, f"src/data/{dataset_name}.pt")
-
-        print()
-        print(f"data shape: {data.shape}")
-        print(f"labels shape: {labels.shape}")
+                state = next_state
 
     def save(
         self,
