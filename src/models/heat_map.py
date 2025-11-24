@@ -34,9 +34,10 @@ class BombHeatMap:
                     x_pad - (kernel_size) : x_pad + (kernel_size + 1),
                     y_pad - (kernel_size) : y_pad + (kernel_size + 1),
                 ]
-                prediction = self.net(min_array)
-                prediction_percent = F.softmax(prediction)
-                confidence_matrix[:, x, y] = prediction_percent
+                with torch.no_grad():
+                    prediction = self.net(min_array)
+                    prediction_percent = F.softmax(prediction, dim=1)
+                    confidence_matrix[:, x, y] = prediction_percent
         return confidence_matrix
 
     def train(self, dataset_name, epochs: int = 5, mini_batch_size: int = 128):
@@ -46,7 +47,7 @@ class BombHeatMap:
             shuffle=True,
         )
 
-        for epoch in tqdm(range(epochs), desc="Training", unit="epochs"):
+        for epoch in tqdm(range(epochs), desc="Training", unit="epoch"):
             for data_batch, label_batch in train_loader:
                 self.optimizer.zero_grad()
                 output = self.net(data_batch)
@@ -99,14 +100,15 @@ class BombHeatMap:
         return data, labels
 
     # TODO make YAML file for dataset to save config
+    # TODO add num arrays in dataset counter
     def append_to_dataset(
         self,
         env: MinesweeperEnv,
         dataset_name=None,
         repeats: int = 10,
         kernel_size: int = 1,
-        bombs_per_iter: int = 10,
-        saves_per_iter: int = 10,
+        max_bombs_per_iter: int = 10,
+        max_saves_per_iter: int = 10,
     ):
         os.makedirs(f"src/data/{dataset_name}/train/", exist_ok=True)
         os.makedirs(f"src/data/{dataset_name}/test/", exist_ok=True)
@@ -135,8 +137,9 @@ class BombHeatMap:
             next_state, _, done, _, info = env.step(-1)
             state = next_state
             done = False
-            stop = False
-            while not done and not stop:
+            saves_per_iter = max_saves_per_iter
+            bombs_per_iter = max_bombs_per_iter
+            while not done:
                 temp = np.pad(
                     state,
                     pad_width=[
@@ -152,11 +155,15 @@ class BombHeatMap:
                 save_actions = info["save_actions"]
                 bomb_actions = info["bomb_actions"]
 
-                if len(save_actions[0]) > saves_per_iter:
-                    save_sample = np.random.choice(save_actions[0], saves_per_iter)
-                    bomb_sample = np.random.choice(bomb_actions[0], bombs_per_iter)
-                else:
-                    stop = True
+                if len(save_actions[0]) < saves_per_iter:
+                    saves_per_iter = len(save_actions[0])
+                    bombs_per_iter = len(save_actions[0])
+
+                if saves_per_iter <= 0:
+                    break
+
+                save_sample = np.random.choice(save_actions[0], saves_per_iter)
+                bomb_sample = np.random.choice(bomb_actions[0], bombs_per_iter)
 
                 for action in save_sample:
                     x, y = helper.action_to_index(action, master_board.shape)
@@ -194,6 +201,7 @@ class BombHeatMap:
 
                 next_state, _, done, _, info = env.step(-1)
                 state = next_state
+        print("appending finished")
 
     def save(
         self,

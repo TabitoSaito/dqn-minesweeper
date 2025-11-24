@@ -47,7 +47,7 @@ class MinesweeperEnv(gym.Env):
             "board": self._board,
             "save_actions": self._get_save_actions(),
             "bomb_actions": self._get_bomb_actions(),
-            "win": self._check_win()
+            "win": self._check_win(),
         }
 
     def _get_save_actions(self):
@@ -114,11 +114,11 @@ class MinesweeperEnv(gym.Env):
         temp = self._master_board.flatten()
         return temp
 
-    def render(self):
+    def render(self, confidence_matrix=None):
         if self.render_mode == "rgb_array":
-            return self._render_frame()
+            return self._render_frame(confidence_matrix=confidence_matrix)
 
-    def _render_frame(self):
+    def _render_frame(self, confidence_matrix=None):
         if self.window is None and self.render_mode == "human":
             pygame.init()
             pygame.display.init()
@@ -165,6 +165,25 @@ class MinesweeperEnv(gym.Env):
                         int(pix_square_size * y + pix_square_size / 2),
                     )
                     canvas.blit(text_surf, dest=text_rect)
+                else:
+                    if confidence_matrix is not None:
+                        confidence_cell = confidence_matrix[:, x, y]
+                        if confidence_cell[0] >= 0.5:
+                            color = "red"
+                        else:
+                            color = "blue"
+
+                        confidence_amount = abs(confidence_cell[0] - confidence_cell[1])
+
+                        pygame.draw.circle(
+                            canvas,
+                            color,
+                            (
+                                int(pix_square_size * x + pix_square_size / 2),
+                                int(pix_square_size * y + pix_square_size / 2),
+                            ),
+                            int((pix_square_size / 2 - pix_square_size * 0.1) * confidence_amount),
+                        )
 
         if self.render_mode == "human":
             self.window.blit(canvas, canvas.get_rect())

@@ -89,5 +89,5 @@ def make_loader(pattern, batch_size=64, num_workers=4, shuffle_buffer=1000, shuf
     ds = ds.to_tuple("npy", "cls")   # get two fields
     ds = ds.map(np_to_tensor)        # convert numpy -> torch
     # Optionally use .batched() to speed up if decode is expensive then convert batch -> tensors
-    return DataLoader(ds, batch_size=batch_size, collate_fn=collate_fn, num_workers=num_workers, pin_memory=True)
+    return DataLoader(ds, batch_size=batch_size, collate_fn=collate_fn, num_workers=num_workers)
 

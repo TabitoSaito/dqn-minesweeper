@@ -14,14 +14,15 @@ def render_run(agent, env, run_name: str, max_steps: int = 0, runs: int = 10):
         score = 0
         frames = []
         j = 0
+        confidence_matrix = None
         while j < max_steps or max_steps == 0:
             state = torch.tensor(state, dtype=torch.float32, device=DEVICE).unsqueeze(0)
             mask = torch.tensor(mask.reshape(1, -1), dtype=torch.bool, device=DEVICE)
 
             j += 1
-            frame = env.render()
+            action, confidence_matrix = agent.act(state, mask=mask[0])
+            frame = env.render(confidence_matrix=confidence_matrix)
             frames.append(frame)
-            action = agent.act(state, mask=mask[0])
             state, reward, done, _, info = env.step(action.item())
             mask = info["mask"]
             score += reward
@@ -60,7 +61,7 @@ def eval_winrate(agent, env, max_steps: int = 0, runs: int = 50):
             state = torch.tensor(state, dtype=torch.float32, device=DEVICE).unsqueeze(0)
             mask = torch.tensor(mask.reshape(1, -1), dtype=torch.bool, device=DEVICE)
             j += 1
-            action = agent.act(state, mask=mask[0])
+            action, _ = agent.act(state, mask=mask[0])
             state, reward, done, _, info = env.step(action.item())
             mask = info["mask"]
             score += reward

@@ -6,7 +6,7 @@ from collections import deque
 class OneHotEncodeBoardStacked(ObservationWrapper):
     def __init__(self, env: Env, stack_size = 4):
         super().__init__(env)
-        self.channels = 10
+        self.channels = 9
         self.stack = deque(maxlen=stack_size * self.channels)
         self.stack_size = stack_size 
 
@@ -20,17 +20,17 @@ class OneHotEncodeBoardStacked(ObservationWrapper):
             temp[board == i] = 1
             temp_arrays.append(temp)
 
-        neighbors = np.zeros(board.shape)
-        temp = [np.pad(array, pad_width=1, mode="constant") for array in temp_arrays]
-        for x in range(neighbors.shape[0]):
-            for y in range(neighbors.shape[1]):
-                count = 0
-                for a in temp:
-                    min_array = a[x : x + 3, y : y + 3]
-                    count += abs(np.sum(min_array))
-                neighbors[x, y] = count
+        # neighbors = np.zeros(board.shape)
+        # temp = [np.pad(array, pad_width=1, mode="constant") for array in temp_arrays]
+        # for x in range(neighbors.shape[0]):
+        #     for y in range(neighbors.shape[1]):
+        #         count = 0
+        #         for a in temp:
+        #             min_array = a[x : x + 3, y : y + 3]
+        #             count += abs(np.sum(min_array))
+        #         neighbors[x, y] = count
 
-        temp_arrays.append(neighbors)
+        # temp_arrays.append(neighbors)
 
         if len(self.stack) < self.stack_size * self.channels:
             for i in range(self.stack_size):
@@ -42,3 +42,6 @@ class OneHotEncodeBoardStacked(ObservationWrapper):
         
         stacked = np.stack(self.stack)
         return stacked
+    
+    def render(self, confidence_matrix=None):
+        return self.env.render(confidence_matrix=confidence_matrix)

@@ -12,4 +12,4 @@ class Agent:
         save_prob = prediction[0].flatten()
         masked_prob = save_prob.masked_fill(mask, 0)
         action = torch.max(masked_prob, 0)[1]
-        return action
+        return action, prediction
