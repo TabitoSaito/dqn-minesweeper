@@ -69,25 +69,47 @@ def find_next_shard_id(pattern):
 
     return max(nums) + 1
 
-def np_to_tensor(sample):
+def np_to_tensor_kernel(sample):
     arr, label = sample
     x = torch.from_numpy(arr).float().to(DEVICE)
     y = int(label) if isinstance(label, (bytes, str, int)) else int(label.item())
     return x, y
 
-def collate_fn(batch):
+def np_to_tensor_board(sample):
+    arr, label = sample
+    x = torch.from_numpy(arr).float().to(DEVICE)
+    y = torch.from_numpy(label).float().to(DEVICE)
+    return x, y
+
+def collate_fn_kernel(batch):
     xs = torch.stack([b[0] for b in batch], dim=0).to(DEVICE)
     ys = torch.tensor([b[1] for b in batch], dtype=torch.long).to(DEVICE)
     return xs, ys
 
-def make_loader(pattern, batch_size=64, num_workers=4, shuffle_buffer=1000, shuffle=True):
+def collate_fn_board(batch):
+    xs = torch.stack([b[0] for b in batch], dim=0).to(DEVICE)
+    ys = torch.stack([b[1] for b in batch], dim=0).to(DEVICE)
+    return xs, ys
+
+def make_loader_kernel(pattern, batch_size=64, num_workers=4, shuffle_buffer=1000, shuffle=True):
     files = sorted(glob.glob(pattern))
     ds = WebDataset(files, empty_check=False, shardshuffle=False)
     if shuffle:
         ds = ds.shuffle(shuffle_buffer)
     ds = ds.decode(basichandlers)          # decode .npy into numpy arrays
     ds = ds.to_tuple("npy", "cls")   # get two fields
-    ds = ds.map(np_to_tensor)        # convert numpy -> torch
+    ds = ds.map(np_to_tensor_kernel)        # convert numpy -> torch
     # Optionally use .batched() to speed up if decode is expensive then convert batch -> tensors
-    return DataLoader(ds, batch_size=batch_size, collate_fn=collate_fn, num_workers=num_workers)
+    return DataLoader(ds, batch_size=batch_size, collate_fn=collate_fn_kernel, num_workers=num_workers)
+
+def make_loader_board(pattern, batch_size=64, num_workers=4, shuffle_buffer=1000, shuffle=True):
+    files = sorted(glob.glob(pattern))
+    ds = WebDataset(files, empty_check=False, shardshuffle=False)
+    if shuffle:
+        ds = ds.shuffle(shuffle_buffer)
+    ds = ds.decode(basichandlers)          # decode .npy into numpy arrays
+    ds = ds.to_tuple("a1.npy", "a2.npy")   # get two fields
+    ds = ds.map(np_to_tensor_board)        # convert numpy -> torch
+    # Optionally use .batched() to speed up if decode is expensive then convert batch -> tensors
+    return DataLoader(ds, batch_size=batch_size, collate_fn=collate_fn_board, num_workers=num_workers)
 

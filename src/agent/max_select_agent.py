@@ -1,8 +1,8 @@
 import torch
-from models.heat_map import BombHeatMap
+from models.heat_map import BombHeatMapKernel, BombHeatMapBoard
 
 class Agent:
-    def __init__(self, number_actions, heat_map: BombHeatMap, kernel_size=1) -> None:
+    def __init__(self, number_actions, heat_map: BombHeatMapKernel | BombHeatMapBoard, kernel_size=1) -> None:
         self.heat_map = heat_map
         self.n_actions = number_actions
         self.kernel_size = kernel_size
