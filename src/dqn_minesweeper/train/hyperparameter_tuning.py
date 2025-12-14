@@ -1,5 +1,5 @@
-from train.train_loop import TrainLoop
-from train.evaluation import eval_agent
+from .train_loop import TrainLoop
+from .evaluation import eval_agent
 import optuna
 from functools import partial
 from typing import Optional, Iterable
@@ -7,7 +7,7 @@ import numpy as np
 import copy
 import torch
 
-from utils.helper import build_agent
+from ..utils.helper import build_agent
 
 
 def objective(trial, config, env, max_episodes: int = 2000, min_episodes: int = 2000, loops: int = 5, patience: int = 3, min_progress: float = 0.02, seeds: Optional[Iterable[int]] = None):

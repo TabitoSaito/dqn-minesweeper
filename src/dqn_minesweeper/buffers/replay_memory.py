@@ -1,7 +1,7 @@
 from collections import deque
 import numpy as np
 import torch
-from utils.constants import Experiences, DEVICE
+from ..utils.constants import Experiences, DEVICE
 import random
 
 

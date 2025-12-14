@@ -1,7 +1,7 @@
 import torch
 import cv2
 from itertools import count
-from utils.constants import DEVICE
+from ..utils.constants import DEVICE
 import numpy as np
 
 

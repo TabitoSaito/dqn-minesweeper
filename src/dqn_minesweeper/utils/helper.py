@@ -1,7 +1,6 @@
 import random
-import numpy as np
-from agents.dqn_agent import BaseAgent, DQNAgent, DQNAgentPER, DoubleDQNAgent, DoubleDQNAgentPER
-from networks.dqn_networks import DQN, DuelingDQN, NoisyDQN, NoisyDuelingDQN
+from ..agents.dqn_agent import BaseAgent, DQNAgent, DQNAgentPER, DoubleDQNAgent, DoubleDQNAgentPER
+from ..networks.dqn_networks import DQN, DuelingDQN, NoisyDQN, NoisyDuelingDQN
 import torch
 import os
 

@@ -1,6 +1,6 @@
 import torch.nn as nn
 import torch.nn.functional as F
-from networks.layers import NoisyLayer
+from .layers import NoisyLayer
 
 
 class DQN(nn.Module):

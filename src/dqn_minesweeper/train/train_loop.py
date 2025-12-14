@@ -1,15 +1,15 @@
 import torch
 from itertools import count, cycle
 import numpy as np
-from utils.constants import DEVICE
-from train.plots import plot_training
+import copy
 from multiprocessing import Process, Queue
 from typing import Iterable, Optional
 import time
-from utils.helper import build_agent, save_agent
-import copy
-from train.evaluation import eval_agent
 from tqdm import tqdm
+from ..utils.constants import DEVICE
+from .plots import plot_training
+from ..utils.helper import build_agent, save_agent
+from .evaluation import eval_agent
 
 
 class TrainLoop:

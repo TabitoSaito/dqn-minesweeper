@@ -5,8 +5,8 @@ import random
 import math
 from typing import Callable
 
-from buffers.replay_memory import ReplayMemory, PERMemory
-from utils.constants import DEVICE, Experiences
+from ..buffers.replay_memory import ReplayMemory, PERMemory
+from ..utils.constants import DEVICE, Experiences
 
 
 class BaseAgent:

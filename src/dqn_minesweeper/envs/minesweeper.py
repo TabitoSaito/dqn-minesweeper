@@ -4,8 +4,8 @@ import pygame
 import gymnasium as gym
 from gymnasium import spaces
 
-import utils.helper as helper
-from utils.constants import Identifier
+from ..utils import helper
+from ..utils.constants import Identifier
 
 
 class MinesweeperEnv(gym.Env):
