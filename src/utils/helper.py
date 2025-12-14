@@ -5,9 +5,41 @@ from networks.dqn_networks import DQN, DuelingDQN, NoisyDQN, NoisyDuelingDQN
 import torch
 import os
 
-def get_unique_coordinates(shape: tuple[int, int], n: int):
-    row, col = shape
-    return [np.array([value // row, value % col], dtype=int) for value in random.sample(range(row * col), n)]
+
+def generate_unique_coordinates(
+    n, upper_bound_x, upper_bound_y, lower_bound_x=0, lower_bound_y=0, except_=[]
+):
+    cords = []
+
+    for _ in range(n):
+        while True:
+            x = random.randint(lower_bound_x, upper_bound_x)
+            y = random.randint(lower_bound_y, upper_bound_y)
+
+            cord = [x, y]
+            if cord in cords:
+                continue
+            elif cord[0] == except_[0] and cord[1] == except_[1]:
+                continue
+            else:
+                cords.append(cord)
+                break
+    return list(map(list, zip(*cords)))
+
+
+def index_in_bound(index: tuple[int, int], bound: tuple[int, int]):
+    if not 0 <= index[0] < bound[0]:
+        return False
+    if not 0 <= index[1] < bound[1]:
+        return False
+    return True
+
+
+def action_to_index(action, shape: tuple):
+    row = int(action / shape[1])
+    col = action % shape[1]
+    return (row, col)
+
 
 def build_agent(config, num_actions, num_obs) -> BaseAgent:
     if config["DOUBLE_DQN"] is True:
