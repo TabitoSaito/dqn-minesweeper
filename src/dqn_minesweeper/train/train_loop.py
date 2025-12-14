@@ -42,6 +42,12 @@ class TrainLoop:
         seed = next(self.seeds) if self.seeds is Iterable else None
 
         state, info = self.env.reset(seed=seed)
+        try:
+            mask = info["mask"]
+            mask = torch.tensor(mask.reshape(1, -1), dtype=torch.bool, device=DEVICE)
+        except KeyError:
+            mask = None
+
         state = torch.tensor(state, dtype=torch.float32, device=DEVICE).unsqueeze(0)
 
         self.agent.update_epsilon()
@@ -52,8 +58,13 @@ class TrainLoop:
 
         start_time = time.time()
         for t in count():
-            action, q_values = self.agent.act(state)
+            action, q_values = self.agent.act(state, mask=mask)
             obs, reward, terminated, truncated, info = self.env.step(action.item())
+            try:
+                next_mask = info["mask"]
+                next_mask = torch.tensor(next_mask.reshape(1, -1), dtype=torch.bool, device=DEVICE)
+            except KeyError:
+                next_mask = None
 
             q_values_buffer.append(q_values)
 
@@ -69,6 +80,7 @@ class TrainLoop:
             loss = self.agent.step(state, action, next_state, reward, done)
 
             state = next_state
+            mask = next_mask
 
             if self.plot:
                 self.queue2.put((loss))
