@@ -53,8 +53,8 @@ class TrainLoop:
         self.agent.update_epsilon()
 
         score = 0
-        q_values_buffer = []
-        q_values_mean = []
+        # q_values_buffer = []
+        # q_values_mean = []
 
         start_time = time.time()
         for t in count():
@@ -66,7 +66,7 @@ class TrainLoop:
             except KeyError:
                 next_mask = None
 
-            q_values_buffer.append(q_values)
+            # q_values_buffer.append(q_values)
 
             score += reward
             reward = torch.tensor([reward], device=DEVICE)
@@ -92,8 +92,8 @@ class TrainLoop:
 
         self.scores.append(score)
         self.steps.append(t)
-        q_values_buffer = torch.cat(q_values_buffer)
-        q_values_mean = q_values_buffer.mean(dim=0).tolist()
+        # q_values_buffer = torch.cat(q_values_buffer)
+        # q_values_mean = q_values_buffer.mean(dim=0).tolist()
 
         if np.mean(self.scores[-100:]) > self.best_avg_reward and self.cur_episode > 100:
             self.best_avg_reward = np.mean(self.scores[-100:])
@@ -111,7 +111,7 @@ class TrainLoop:
                 )
         
         if self.plot:
-            self.queue1.put((self.scores, self.best_avg_reward, q_values_mean, self.agent.epsilon, step_duration))
+            self.queue1.put((self.scores, self.best_avg_reward, [], self.agent.epsilon, step_duration))
 
     def end_training(self):
         if self.cur_episode % 100 != 0 and self.dyn_print:
@@ -136,7 +136,7 @@ def prebuilt_train_loop(agent, env, episodes=0, seeds: Optional[Iterable[int]] =
     return agent
 
 
-def train_best_agent(agent_config, env, name, loops=10, max_episodes=0, min_episodes=200, patience=3, min_progress=0.02):
+def train_best_agent(agent_config, env, name, loops=10, max_episodes=0, min_episodes=200, patience=3, min_progress=0.01):
     policy_state_dicts = []
 
     state, info = env.reset()

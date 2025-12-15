@@ -179,12 +179,16 @@ class MinesweeperEnv(gym.Env):
                         
                         confidence_cell = confidence_matrix[x, y]
 
+                        confidence_amount = (confidence_cell - torch.min(confidence_matrix[confidence_matrix != 0])) / (torch.max(confidence_matrix[confidence_matrix != 0]) - torch.min(confidence_matrix[confidence_matrix != 0]))
+
+                        if torch.isnan(confidence_amount) > 0:
+                            confidence_amount = 0.5
+
                         if confidence_cell == torch.max(confidence_matrix):
                             color = "green"
                         else:
                             color = "blue"
-                        confidence_amount = confidence_cell * 2
-
+                        
                         pygame.draw.circle(
                             canvas,
                             color,

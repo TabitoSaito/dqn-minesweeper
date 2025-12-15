@@ -1,0 +1,120 @@
+# ----- Example ----- #
+# <Parameter>:
+  # type: float
+  # value: 
+    # low: <float value>
+    # high: <float value>
+# <Parameter>:
+  # type: log_float
+  # value: 
+    # low: <float value>
+    # high: <float value>
+# <Parameter>:
+  # type: int
+  # value: 
+    # low: <int value>
+    # high: <int value>
+# <Parameter>:
+  # type: log_int
+  # value: 
+    # low: <int value>
+    # high: <int value>
+# <Parameter>:
+  # type: list
+  # value: 
+    # - <value>
+    # - <value>
+    # - ...
+
+# Architecture
+DOUBLE_DQN: 
+  condition: None
+  type: list
+  value:
+    - true
+    - false
+PER:
+  condition: None
+  type: list
+  value:
+    - true
+    - false
+CNN:
+  condition: None
+  type: list
+  value:
+    - true
+    - false
+DUELING:
+  condition: None
+  type: list
+  value:
+    - true
+    - false
+NOISY:
+  condition: None
+  type: list
+  value:
+    - false
+# Hyperparameters
+EPS_START: # epsilon starting value
+  condition: None
+  type: list
+  value:
+    - 0.9
+EPS_END: # endvalue of epsilon
+  condition: None
+  type: list
+  value:
+    - 0.01
+EPS_DECAY: # steps until epsilon endvalue is reached
+  condition: None
+  type: log_int
+  value:
+    low: 100
+    high: 50000
+TAU: # soft-update rate
+  condition: None
+  type: log_float
+  value:
+    high: !!float 10000
+    low: !!float 1e-7
+GAMMA: # discount factor
+  condition: None
+  type: list
+  value:
+    - 0.99
+LR: # learning rate
+  condition: None
+  type: log_float
+  value:
+    high: !!float 1e-1
+    low: !!float 1e-7
+CAPACITY: # capacity of replay memory
+  condition: None
+  type: log_int
+  value:
+    low: 10000
+    high: 1000000
+MINI_BATCH_SIZE: # batch size of replay samples
+  condition: None
+  type: list
+  value:
+    - 32
+    - 64
+    - 128
+    - 264
+    - 528
+# PER
+ALPHA:
+  condition: PER
+  type: float
+  value:
+    high: 1
+    low: 0
+BETA:
+  condition: PER
+  type: float
+  value:
+    high: 1
+    low: 0
