@@ -1,6 +1,6 @@
 import random
 from ..agents.dqn_agent import BaseAgent, DQNAgent, DQNAgentPER, DoubleDQNAgent, DoubleDQNAgentPER
-from ..networks.dqn_networks import DQN, DuelingDQN, NoisyDQN, NoisyDuelingDQN, DQNCNN
+from ..networks.dqn_networks import DQN, DuelingDQN, NoisyDQN, NoisyDuelingDQN, DQNCNN, DuelingDQNCNN
 import torch
 import os
 
@@ -57,6 +57,8 @@ def build_agent(config, num_actions, num_obs) -> BaseAgent:
     if config["DUELING"] is True and config["NOISY"] is True:
         network = NoisyDuelingDQN
         noisy = True
+    elif config["DUELING"] is True and config["CNN"] is True:
+        network = DuelingDQNCNN
     elif config["DUELING"] is True:
         network = DuelingDQN
     elif config["NOISY"] is True:

@@ -104,3 +104,33 @@ class DQNCNN(nn.Module):
 
         x = torch.flatten(x, start_dim=1)
         return x
+    
+class DuelingDQNCNN(nn.Module):
+    def __init__(self, in_channels, action_size) -> None:
+        super().__init__()
+        self.conv1 = nn.Conv2d(in_channels, 64, kernel_size=3, padding="same")
+        self.conv2 = nn.Conv2d(64, 64, kernel_size=3, padding="same")
+        self.conv3 = nn.Conv2d(64, 64, kernel_size=3, padding="same")
+        self.conv4 = nn.Conv2d(64, 64, kernel_size=3, padding="same")
+        self.conv5 = nn.Conv2d(64, 64, kernel_size=3, padding="same")
+        self.conv6 = nn.Conv2d(64, 64, kernel_size=3, padding="same")
+
+        self.global_avg_pool = nn.AdaptiveAvgPool2d((1, 1))
+
+        self.advantage_stream = nn.Conv2d(64, 1, kernel_size=1)
+        self.value_stream = nn.Conv2d(64, 1, kernel_size=1)
+
+    def forward(self, state):
+        x = F.relu(self.conv1(state))
+        x = F.relu(self.conv2(x))
+        x = F.relu(self.conv3(x))
+        x = F.relu(self.conv4(x))
+        x = F.relu(self.conv5(x))
+        x = F.relu(self.conv6(x))
+
+        value = self.global_avg_pool(self.value_stream(x))
+        advantage = self.advantage_stream(x)
+
+        x = value + advantage - advantage.mean(dim=1, keepdim=True)
+        x = torch.flatten(x, start_dim=1)
+        return x
