@@ -34,10 +34,12 @@ class BaseAgent:
         self.epsilon_steps = 0
         self.update_steps = 0
 
-    def act(self, state, train_mode=True):
+    def act(self, state, mask=None, train_mode=True):
         self.policy_net.eval()
         with torch.no_grad():
             q_values = self.policy_net(state)
+            if mask is not None:
+                q_values[0].masked_fill_(mask[0], -1e9)
         self.policy_net.train()
 
         sample = random.random()
@@ -50,7 +52,7 @@ class BaseAgent:
             return q_values.argmax(keepdim=True), q_values
         else:
             return torch.tensor(
-                [random.sample([i for i in range(self.action_size)], 1)],
+                [random.sample([i for i in range(self.action_size) if q_values[0][i] > -1e9], 1)],
                 device=DEVICE,
                 dtype=torch.long,
             ), q_values
@@ -62,7 +64,7 @@ class BaseAgent:
 
         self.epsilon_steps += 1
 
-    def step(self, state, action, next_state, reward, done):
+    def step(self, state, action, next_state, reward, done, mask=None, next_mask=None):
         raise NotImplementedError("step method not implemented.")
 
     def learn(self, batch):
@@ -101,8 +103,8 @@ class DQNAgent(BaseAgent):
     ) -> None:
         super().__init__(action_size, observation_size, config, network, noisy)
 
-    def step(self, state, action, next_state, reward, done):
-        self.memory.push(state, action, next_state, reward, done)
+    def step(self, state, action, next_state, reward, done, mask=None, next_mask=None):
+        self.memory.push(state, action, next_state, reward, done, mask, next_mask)
         if len(self.memory) > self.config["MINI_BATCH_SIZE"]:
             experiences = self.memory.sample(self.config["MINI_BATCH_SIZE"])
             batch = Experiences(*zip(*experiences))
@@ -115,16 +117,19 @@ class DQNAgent(BaseAgent):
         reward_batch = torch.cat(batch.reward)
         done_batch = torch.cat(batch.done)
 
+        mask_batch = torch.cat(batch.mask)
+        next_mask_batch = torch.cat(batch.mask)
+
         try:
             self.policy_net.reset_noise()
             self.target_net.reset_noise()
         except AttributeError:
             pass
 
-        state_action_values = self.policy_net(state_batch).gather(1, action_batch)
+        state_action_values = self.policy_net(state_batch).masked_fill(mask_batch, -1e9).gather(1, action_batch)
 
         with torch.no_grad():
-            next_state_action_values = self.target_net(next_state_batch).max(1).values
+            next_state_action_values = self.target_net(next_state_batch).masked_fill(next_mask_batch, -1e9).max(1).values
 
             expected_state_action_values = (
                 next_state_action_values * self.config["GAMMA"]

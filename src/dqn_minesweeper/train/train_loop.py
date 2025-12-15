@@ -77,7 +77,7 @@ class TrainLoop:
                 obs, dtype=torch.float32, device=DEVICE
             ).unsqueeze(0)
 
-            loss = self.agent.step(state, action, next_state, reward, done)
+            loss = self.agent.step(state, action, next_state, reward, done, mask, next_mask)
 
             state = next_state
             mask = next_mask
@@ -132,6 +132,8 @@ def prebuilt_train_loop(agent, env, episodes=0, seeds: Optional[Iterable[int]] =
 
     if loop.cur_episode % 100 != 0 and dyn_print:
         print("")
+
+    return agent
 
 
 def train_best_agent(agent_config, env, name, loops=10, max_episodes=0, min_episodes=200, patience=3, min_progress=0.02):

@@ -1,11 +1,12 @@
 import numpy as np
 import pygame
+import torch
 
 import gymnasium as gym
 from gymnasium import spaces
 
 from ..utils import helper
-from ..utils.constants import Identifier
+from ..utils.constants import Identifier, NUM_TO_COLOR
 
 
 class MinesweeperEnv(gym.Env):
@@ -115,15 +116,11 @@ class MinesweeperEnv(gym.Env):
 
         return observation, self.reward, self._terminated, False, info
 
-    def safe_step(self):
-        temp = self._master_board.flatten()
-        return temp
-
-    def render(self, confidence_matrix=None):
+    def render(self, q_values=None):
         if self.render_mode == "rgb_array":
-            return self._render_frame(confidence_matrix=confidence_matrix)
+            return self._render_frame(q_values=q_values)
 
-    def _render_frame(self, confidence_matrix=None):
+    def _render_frame(self, q_values=None):
         if self.window is None and self.render_mode == "human":
             pygame.init()
             pygame.display.init()
@@ -160,11 +157,17 @@ class MinesweeperEnv(gym.Env):
                 width=3,
             )
 
+        if q_values is not None:
+            prediction = torch.softmax(q_values, dim=1).squeeze(0)
+            confidence_matrix = torch.reshape(prediction, self._board.shape)
+        else:
+            confidence_matrix = None
+
         for x in range(self._board.shape[0]):
             for y in range(self._board.shape[1]):
                 value = self._board[x, y]
                 if value != Identifier.UNREVEALED.value:
-                    text_surf = self.font.render(str(value), False, (0, 0, 0))
+                    text_surf = self.font.render(str(value), False, NUM_TO_COLOR[int(value)])
                     text_rect = text_surf.get_rect()
                     text_rect.center = (
                         int(self.pix_square_size * x + self.pix_square_size / 2),
@@ -173,13 +176,14 @@ class MinesweeperEnv(gym.Env):
                     canvas.blit(text_surf, dest=text_rect)
                 else:
                     if confidence_matrix is not None:
-                        confidence_cell = confidence_matrix[:, x, y]
-                        if confidence_cell[0] >= 0.5:
-                            color = "red"
+                        
+                        confidence_cell = confidence_matrix[x, y]
+
+                        if confidence_cell == torch.max(confidence_matrix):
+                            color = "green"
                         else:
                             color = "blue"
-
-                        confidence_amount = abs(confidence_cell[0] - confidence_cell[1])
+                        confidence_amount = confidence_cell * 2
 
                         pygame.draw.circle(
                             canvas,
