@@ -162,7 +162,7 @@ class DQNAgentPER(BaseAgent):
         super().__init__(action_size, observation_size, config, network, noisy)
         self.memory = PERMemory(config["CAPACITY"], config["ALPHA"], config["BETA"])
 
-    def step(self, state, action, next_state, reward, done):
+    def step(self, state, action, next_state, reward, done, mask=None, next_mask=None):
         with torch.no_grad():
             state_action_value = self.policy_net(state)[0, action].to(DEVICE)
             next_state_action_value = self.target_net(next_state).max(1)[0].item()
@@ -173,7 +173,7 @@ class DQNAgentPER(BaseAgent):
             )
 
         self.memory.push(
-            state, action, next_state, reward, done, td_error=td_error.item()
+            state, action, next_state, reward, done, mask, next_mask, td_error=td_error.item()
         )
         if len(self.memory) > self.config["MINI_BATCH_SIZE"]:
             experiences, indices, weights = self.memory.sample(
@@ -189,16 +189,19 @@ class DQNAgentPER(BaseAgent):
         reward_batch = torch.cat(batch.reward)
         done_batch = torch.cat(batch.done)
 
+        mask_batch = torch.cat(batch.mask)
+        next_mask_batch = torch.cat(batch.mask)
+
         try:
             self.policy_net.reset_noise()
             self.target_net.reset_noise()
         except AttributeError:
             pass
 
-        state_action_values = self.policy_net(state_batch).gather(1, action_batch)
+        state_action_values = self.policy_net(state_batch).masked_fill(mask_batch, -1e9).gather(1, action_batch)
 
         with torch.no_grad():
-            next_state_action_values = self.target_net(next_state_batch).max(1).values
+            next_state_action_values = self.target_net(next_state_batch).masked_fill(next_mask_batch, -1e9).max(1).values
 
             expected_state_action_values = (
                 next_state_action_values * self.config["GAMMA"]
@@ -237,13 +240,15 @@ class DoubleDQNAgent(BaseAgent):
     ) -> None:
         super().__init__(action_size, observation_size, config, network, noisy)
 
-    def step(self, state, action, next_state, reward, done):
+    def step(self, state, action, next_state, reward, done, mask=None, next_mask=None):
         self.memory.push(
-            state.clone().detach(),
-            action.clone().detach(),
-            next_state.clone().detach(),
-            reward.clone().detach(),
-            done.clone().detach(),
+            state,
+            action,
+            next_state,
+            reward,
+            done,
+            mask,
+            next_mask
         )
         if len(self.memory) > self.config["MINI_BATCH_SIZE"]:
             experiences = self.memory.sample(self.config["MINI_BATCH_SIZE"])
@@ -257,18 +262,21 @@ class DoubleDQNAgent(BaseAgent):
         reward_batch = torch.cat(batch.reward)
         done_batch = torch.cat(batch.done)
 
+        mask_batch = torch.cat(batch.mask)
+        next_mask_batch = torch.cat(batch.mask)
+
         try:
             self.policy_net.reset_noise()
             self.target_net.reset_noise()
         except AttributeError:
             pass
 
-        state_action_values = self.policy_net(state_batch).gather(1, action_batch)
+        state_action_values = self.policy_net(state_batch).masked_fill(mask_batch, -1e9).gather(1, action_batch)
 
         with torch.no_grad():
-            next_actions = self.policy_net(next_state_batch).argmax(1, keepdim=True)
+            next_actions = self.policy_net(next_state_batch).masked_fill(next_mask_batch, -1e9).argmax(1, keepdim=True)
             next_state_action_values = (
-                self.target_net(next_state_batch).gather(1, next_actions).squeeze(1)
+                self.target_net(next_state_batch).masked_fill(next_mask_batch, -1e9).gather(1, next_actions).squeeze(1)
             )
 
             expected_state_action_values = (
@@ -301,13 +309,13 @@ class DoubleDQNAgentPER(BaseAgent):
         super().__init__(action_size, observation_size, config, network, noisy)
         self.memory = PERMemory(config["CAPACITY"], config["ALPHA"], config["BETA"])
 
-    def step(self, state, action, next_state, reward, done):
+    def step(self, state, action, next_state, reward, done, mask=None, next_mask=None):
         with torch.no_grad():
             state_action_value = self.policy_net(state)[0, action].to(DEVICE)
             next_state_action_value = self.target_net(next_state).max(1)[0].item()
             td_error = reward + self.config["GAMMA"] * next_state_action_value * (1 - done) - state_action_value
 
-        self.memory.push(state, action, next_state, reward, done, td_error=td_error.item())
+        self.memory.push(state, action, next_state, reward, done, mask, next_mask, td_error=td_error.item())
         if len(self.memory) > self.config["MINI_BATCH_SIZE"]:
             experiences, indices, weights = self.memory.sample(self.config["MINI_BATCH_SIZE"])
             batch = Experiences(*zip(*experiences))
@@ -320,18 +328,21 @@ class DoubleDQNAgentPER(BaseAgent):
         reward_batch = torch.cat(batch.reward)
         done_batch = torch.cat(batch.done)
 
+        mask_batch = torch.cat(batch.mask)
+        next_mask_batch = torch.cat(batch.mask)
+
         try:
             self.policy_net.reset_noise()
             self.target_net.reset_noise()
         except AttributeError:
             pass
 
-        state_action_values = self.policy_net(state_batch).gather(1, action_batch)
+        state_action_values = self.policy_net(state_batch).masked_fill(mask_batch, -1e9).gather(1, action_batch)
 
         with torch.no_grad():
-            next_actions = self.policy_net(next_state_batch).argmax(1, keepdim=True)
+            next_actions = self.policy_net(next_state_batch).masked_fill(next_mask_batch, -1e9).argmax(1, keepdim=True)
             next_state_action_values = (
-                self.target_net(next_state_batch).gather(1, next_actions).squeeze(1)
+                self.target_net(next_state_batch).masked_fill(next_mask_batch, -1e9).gather(1, next_actions).squeeze(1)
             )
 
             expected_state_action_values = (
