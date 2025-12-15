@@ -31,5 +31,5 @@ class OneHotEncodeBoardStacked(ObservationWrapper):
         stacked = np.stack(self.stack)
         return stacked
     
-    def render(self, confidence_matrix=None):
-        return self.env.render(confidence_matrix=confidence_matrix)
+    def render(self, q_values=None):
+        return self.env.render(q_values=q_values)
