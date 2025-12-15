@@ -1,6 +1,7 @@
 import torch.nn as nn
 import torch.nn.functional as F
 from .layers import NoisyLayer
+import torch
 
 
 class DQN(nn.Module):
@@ -79,3 +80,27 @@ class NoisyDuelingDQN(nn.Module):
         self.fc2.reset_noise()
         self.value_stream.reset_noise()
         self.advantage_stream.reset_noise()
+
+
+class DQNCNN(nn.Module):
+    def __init__(self, in_channels, action_size) -> None:
+        super().__init__()
+        self.conv1 = nn.Conv2d(in_channels, 64, kernel_size=3, padding="same")
+        self.conv2 = nn.Conv2d(64, 64, kernel_size=3, padding="same")
+        self.conv3 = nn.Conv2d(64, 64, kernel_size=3, padding="same")
+        self.conv4 = nn.Conv2d(64, 64, kernel_size=3, padding="same")
+        self.conv5 = nn.Conv2d(64, 64, kernel_size=3, padding="same")
+        self.conv6 = nn.Conv2d(64, 64, kernel_size=3, padding="same")
+        self.conv7 = nn.Conv2d(64, 1, kernel_size=1)
+
+    def forward(self, state):
+        x = F.relu(self.conv1(state))
+        x = F.relu(self.conv2(x))
+        x = F.relu(self.conv3(x))
+        x = F.relu(self.conv4(x))
+        x = F.relu(self.conv5(x))
+        x = F.relu(self.conv6(x))
+        x = self.conv7(x)
+
+        x = torch.flatten(x, start_dim=1)
+        return x

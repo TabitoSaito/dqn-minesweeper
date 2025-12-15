@@ -1,6 +1,6 @@
 import random
 from ..agents.dqn_agent import BaseAgent, DQNAgent, DQNAgentPER, DoubleDQNAgent, DoubleDQNAgentPER
-from ..networks.dqn_networks import DQN, DuelingDQN, NoisyDQN, NoisyDuelingDQN
+from ..networks.dqn_networks import DQN, DuelingDQN, NoisyDQN, NoisyDuelingDQN, DQNCNN
 import torch
 import os
 
@@ -62,6 +62,8 @@ def build_agent(config, num_actions, num_obs) -> BaseAgent:
     elif config["NOISY"] is True:
         network = NoisyDQN
         noisy = True
+    elif config["CNN"] is True:
+        network = DQNCNN
     else:
         network = DQN
 
@@ -70,7 +72,7 @@ def build_agent(config, num_actions, num_obs) -> BaseAgent:
     return agent
 
 def load_agent(name):
-    content = torch.load(os.path.abspath(f"src/checkpoints/{name}.pt"), weights_only=False)
+    content = torch.load(os.path.abspath(f"src/dqn_minesweeper/checkpoints/{name}.pt"), weights_only=False)
     agent = build_agent(content["config"], content["num_actions"], content["num_obs"])
     agent.policy_net.load_state_dict(content["policy_dict"])
 
@@ -84,5 +86,5 @@ def save_agent(name, agent, agent_config, num_actions, num_obs):
         "num_obs": num_obs,
     }
 
-    torch.save(content, os.path.abspath(f"src/checkpoints/{name}.pt"))
+    torch.save(content, os.path.abspath(f"src/dqn_minesweeper/checkpoints/{name}.pt"))
     
