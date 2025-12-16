@@ -10,7 +10,7 @@ import torch
 from ..utils.helper import build_agent
 
 
-def objective(trial, config, env, max_episodes: int = 2000, min_episodes: int = 2000, loops: int = 5, patience: int = 3, min_progress: float = 0.02, seeds: Optional[Iterable[int]] = None):
+def objective(trial, config, env, max_episodes: int = 2000, min_episodes: int = 200, loops: int = 5, patience: int = 3, min_progress: float = 0.02, seeds: Optional[Iterable[int]] = None):
     assert max_episodes > 0, "episodes argument has to be bigger than 0"
 
     if seeds is None:
@@ -50,7 +50,6 @@ def objective(trial, config, env, max_episodes: int = 2000, min_episodes: int = 
 
     aucs = []
     scores = []
-    train_len = []
 
     torch.manual_seed(0)
 
@@ -69,6 +68,8 @@ def objective(trial, config, env, max_episodes: int = 2000, min_episodes: int = 
         prune_count = 0
         while loop.cur_episode < max_episodes:
             loop.episode_step()
+
+            trial.set_user_attr(f"Loop {loop_idx + 1}", {"Episodes": loop.cur_episode, "Winrate": np.mean(loop.wins)})
 
             if loop.cur_episode < 200:
                 continue
@@ -91,13 +92,9 @@ def objective(trial, config, env, max_episodes: int = 2000, min_episodes: int = 
 
         aucs.append(auc)
         scores.append(eval_score)
-        train_len.append(loop.cur_episode)
-        trial.set_user_attr("Episodes", train_len)
 
     aucs.sort()
     scores.sort()
-
-    trial.set_user_attr("Episodes", train_len)
 
     return np.median(aucs), np.median(scores)
 

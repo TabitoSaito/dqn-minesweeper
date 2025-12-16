@@ -22,6 +22,7 @@ class TrainLoop:
 
         self.scores = []
         self.steps = []
+        self.wins = []
         self.best_avg_reward = -float("inf")
 
         self.queue1 = Queue(maxsize=1000)
@@ -35,6 +36,7 @@ class TrainLoop:
 
         self.cur_episode = 0
         self.best_episode = 0
+        self.t = 0
 
     def episode_step(self):
         self.cur_episode += 1
@@ -57,7 +59,7 @@ class TrainLoop:
         # q_values_mean = []
 
         start_time = time.time()
-        for t in count():
+        for self.t in count():
             action, q_values = self.agent.act(state, mask=mask)
             obs, reward, terminated, truncated, info = self.env.step(action.item())
             try:
@@ -88,10 +90,11 @@ class TrainLoop:
             if terminated or truncated:
                 break
 
-        step_duration = t / (time.time() - start_time)
+        step_duration = self.t / (time.time() - start_time)
 
         self.scores.append(score)
-        self.steps.append(t)
+        self.steps.append(self.t)
+        self.wins.append(int(info["win"]))
         # q_values_buffer = torch.cat(q_values_buffer)
         # q_values_mean = q_values_buffer.mean(dim=0).tolist()
 
@@ -101,13 +104,13 @@ class TrainLoop:
 
         if self.dyn_print:
             print(
-                f"\rEpisode {self.cur_episode}\t\tAverage Score: {np.mean(self.scores[-100:]):.2f}\t\tAverage steps: {np.mean(self.steps[-100:]):.2f}\t\tEpsilon: {self.agent.epsilon:.4f}",
+                f"\rEpisode {self.cur_episode}\t\tAverage Score: {np.mean(self.scores[-100:]):.2f}\t\tAverage steps: {np.mean(self.steps[-100:]):.2f}\t\tWinrate: {np.mean(self.wins[-100:]) * 100:.2f}%\t\tEpsilon: {self.agent.epsilon:.4f}",
                 end="",
             )
 
             if self.cur_episode % 100 == 0:
                 print(
-                    f"\rEpisode {self.cur_episode}\t\tAverage Score: {np.mean(self.scores[-100:]):.2f}\t\tAverage steps: {np.mean(self.steps[-100:]):.2f}\t\tEpsilon: {self.agent.epsilon:.4f}",
+                    f"\rEpisode {self.cur_episode}\t\tAverage Score: {np.mean(self.scores[-100:]):.2f}\t\tAverage steps: {np.mean(self.steps[-100:]):.2f}\t\tWinrate: {np.mean(self.wins[-100:]) * 100:.2f}%\t\tEpsilon: {self.agent.epsilon:.4f}",
                 )
         
         if self.plot:

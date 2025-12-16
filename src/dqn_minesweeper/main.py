@@ -26,7 +26,7 @@ def main():
 
     # agent = build_agent(agent_config, num_actions, num_obs)
 
-    # cur_agent = prebuilt_train_loop(agent, env, episodes=0)
+    # cur_agent = prebuilt_train_loop(agent, env, episodes=50)
 
     # save_agent("test", cur_agent, agent_config, num_actions, num_obs)
 

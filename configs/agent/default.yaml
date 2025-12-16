@@ -1,7 +1,7 @@
 # Architecture
 DOUBLE_DQN: !!bool false
 PER: !!bool false
-DUELING: !!bool true
+DUELING: !!bool false
 NOISY: !!bool false
 CNN: !!bool true
 # Hyperparameters

@@ -44,7 +44,6 @@ CNN:
   type: list
   value:
     - true
-    - false
 DUELING:
   condition: None
   type: list
@@ -66,7 +65,7 @@ EPS_END: # endvalue of epsilon
   condition: None
   type: list
   value:
-    - 0.01
+    - 0
 EPS_DECAY: # steps until epsilon endvalue is reached
   condition: None
   type: log_int
