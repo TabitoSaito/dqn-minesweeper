@@ -65,7 +65,7 @@ def plot_training(q1: Queue, q2: Queue, update_interval=0.01):
 
             graph11.set_data([i for i in range(0, len(scores))], scores)
             graph12.set_ydata([best_avg_reward, best_avg_reward])
-            graph13.set_data([np.float32(0)] + [i for i in range(100, len(scores), math.ceil(len(scores) / 20))] + [len(scores)], [np.float32(scores[0])] + [np.mean(scores[i - 100:i]) for i in range(100, len(scores), math.ceil(len(scores) / 20))] + [np.mean(scores[-100:])])
+            graph13.set_data([np.float32(0)] + [i for i in range(100, len(scores), 100)] + [len(scores)], [np.float32(scores[0])] + [np.mean(scores[i - 100:i]) for i in range(100, len(scores), 100)] + [np.mean(scores[-100:])])
 
             axs[0, 0].relim()
             axs[0, 0].autoscale_view()

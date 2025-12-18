@@ -97,6 +97,7 @@ def eval_agent(agent, env, runs=1000, print_=True):
             ).unsqueeze(0)
 
             state = next_state
+            mask = next_mask
 
             if done:
                 break

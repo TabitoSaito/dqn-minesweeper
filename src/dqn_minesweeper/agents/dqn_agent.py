@@ -28,6 +28,7 @@ class BaseAgent:
         self.target_net.eval()
 
         self.optimizer = optim.Adam(self.policy_net.parameters(), lr=config["LR"])
+        self.scheduler = optim.lr_scheduler.StepLR(self.optimizer, 100_000, gamma=0.1)
         self.criterion = nn.SmoothL1Loss()
         self.memory = ReplayMemory(config["CAPACITY"])
 
@@ -144,6 +145,7 @@ class DQNAgent(BaseAgent):
 
         torch.nn.utils.clip_grad_norm_(self.policy_net.parameters(), 10)
         self.optimizer.step()
+        self.scheduler.step()
 
         self.update_net()
 
@@ -223,6 +225,7 @@ class DQNAgentPER(BaseAgent):
 
         torch.nn.utils.clip_grad_norm_(self.policy_net.parameters(), 10)
         self.optimizer.step()
+        self.scheduler.step()
 
         self.update_net()
 
@@ -292,6 +295,7 @@ class DoubleDQNAgent(BaseAgent):
 
         torch.nn.utils.clip_grad_norm_(self.policy_net.parameters(), 10)
         self.optimizer.step()
+        self.scheduler.step()
 
         self.update_net()
         return loss.item()
@@ -365,6 +369,7 @@ class DoubleDQNAgentPER(BaseAgent):
 
         torch.nn.utils.clip_grad_norm_(self.policy_net.parameters(), 10)
         self.optimizer.step()
+        self.scheduler.step()
 
         self.update_net()
 

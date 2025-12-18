@@ -1,16 +1,16 @@
 # Architecture
-DOUBLE_DQN: !!bool false
-PER: !!bool false
+DOUBLE_DQN: !!bool true
+PER: !!bool true
 DUELING: !!bool false
 NOISY: !!bool false
 CNN: !!bool true
 # Hyperparameters
 EPS_START: 0.9 # epsilon starting value
-EPS_END: 0.01 # endvalue of epsilon
-EPS_DECAY: 100 # steps until epsilon endvalue is reached
+EPS_END: 0 # endvalue of epsilon
+EPS_DECAY: 5000 # steps until epsilon endvalue is reached
 TAU: 0.005 # soft-update rate
 GAMMA: 0.99 # discount factor
-LR: !!float 3e-4 # learning rate
+LR: !!float 3e-3 # learning rate
 CAPACITY: 100000 # capacity of replay memory
 MINI_BATCH_SIZE: 128 # batch size of replay samples
 # PER
