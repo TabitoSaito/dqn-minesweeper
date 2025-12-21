@@ -181,6 +181,9 @@ class MinesweeperEnv(gym.Env):
 
                         confidence_amount = (confidence_cell - torch.min(confidence_matrix[confidence_matrix != 0])) / (torch.max(confidence_matrix[confidence_matrix != 0]) - torch.min(confidence_matrix[confidence_matrix != 0]))
 
+                        if confidence_amount == float("-inf"):
+                            continue
+
                         if torch.isnan(confidence_amount) > 0:
                             confidence_amount = 0.5
 

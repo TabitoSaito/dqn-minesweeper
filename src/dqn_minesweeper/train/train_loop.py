@@ -125,7 +125,10 @@ def prebuilt_train_loop(agent, env, episodes=0, seeds: Optional[Iterable[int]] =
     loop = TrainLoop(agent=agent, env=env, seeds=seeds, dyn_print=dyn_print, plot=plot)
     try:
         for _ in count(start=1):
-            loop.episode_step()
+            try:
+                loop.episode_step()
+            except Exception as e:
+                print(f"Error at episode {loop.cur_episode}.\n{e}")
             if episodes == 0:
                 continue
             if loop.cur_episode >= episodes:

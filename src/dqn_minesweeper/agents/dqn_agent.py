@@ -28,7 +28,7 @@ class BaseAgent:
         self.target_net.eval()
 
         self.optimizer = optim.Adam(self.policy_net.parameters(), lr=config["LR"])
-        self.scheduler = optim.lr_scheduler.StepLR(self.optimizer, 100_000, gamma=0.1)
+        self.scheduler = optim.lr_scheduler.StepLR(self.optimizer, 300_000, gamma=0.5)
         self.criterion = nn.SmoothL1Loss()
         self.memory = ReplayMemory(config["CAPACITY"])
 
@@ -40,7 +40,7 @@ class BaseAgent:
         with torch.no_grad():
             q_values = self.policy_net(state)
             if mask is not None:
-                q_values[0].masked_fill_(mask[0], -1e9)
+                q_values[0].masked_fill_(mask[0], float("-inf"))
         self.policy_net.train()
 
         sample = random.random()
@@ -53,7 +53,7 @@ class BaseAgent:
             return q_values.argmax(keepdim=True), q_values
         else:
             return torch.tensor(
-                [random.sample([i for i in range(self.action_size) if q_values[0][i] > -1e9], 1)],
+                [random.sample([i for i in range(self.action_size) if q_values[0][i] > float("-inf")], 1)],
                 device=DEVICE,
                 dtype=torch.long,
             ), q_values
@@ -127,10 +127,10 @@ class DQNAgent(BaseAgent):
         except AttributeError:
             pass
 
-        state_action_values = self.policy_net(state_batch).masked_fill(mask_batch, -1e9).gather(1, action_batch)
+        state_action_values = self.policy_net(state_batch).masked_fill(mask_batch, float("-inf")).gather(1, action_batch)
 
         with torch.no_grad():
-            next_state_action_values = self.target_net(next_state_batch).masked_fill(next_mask_batch, -1e9).max(1).values
+            next_state_action_values = self.target_net(next_state_batch).masked_fill(next_mask_batch, float("-inf")).max(1).values
 
             expected_state_action_values = (
                 next_state_action_values * self.config["GAMMA"]
@@ -200,10 +200,10 @@ class DQNAgentPER(BaseAgent):
         except AttributeError:
             pass
 
-        state_action_values = self.policy_net(state_batch).masked_fill(mask_batch, -1e9).gather(1, action_batch)
+        state_action_values = self.policy_net(state_batch).masked_fill(mask_batch, float("-inf")).gather(1, action_batch)
 
         with torch.no_grad():
-            next_state_action_values = self.target_net(next_state_batch).masked_fill(next_mask_batch, -1e9).max(1).values
+            next_state_action_values = self.target_net(next_state_batch).masked_fill(next_mask_batch, float("-inf")).max(1).values
 
             expected_state_action_values = (
                 next_state_action_values * self.config["GAMMA"]
@@ -274,12 +274,12 @@ class DoubleDQNAgent(BaseAgent):
         except AttributeError:
             pass
 
-        state_action_values = self.policy_net(state_batch).masked_fill(mask_batch, -1e9).gather(1, action_batch)
+        state_action_values = self.policy_net(state_batch).masked_fill(mask_batch, float("-inf")).gather(1, action_batch)
 
         with torch.no_grad():
-            next_actions = self.policy_net(next_state_batch).masked_fill(next_mask_batch, -1e9).argmax(1, keepdim=True)
+            next_actions = self.policy_net(next_state_batch).masked_fill(next_mask_batch, float("-inf")).argmax(1, keepdim=True)
             next_state_action_values = (
-                self.target_net(next_state_batch).masked_fill(next_mask_batch, -1e9).gather(1, next_actions).squeeze(1)
+                self.target_net(next_state_batch).masked_fill(next_mask_batch, float("-inf")).gather(1, next_actions).squeeze(1)
             )
 
             expected_state_action_values = (
@@ -341,12 +341,12 @@ class DoubleDQNAgentPER(BaseAgent):
         except AttributeError:
             pass
 
-        state_action_values = self.policy_net(state_batch).masked_fill(mask_batch, -1e9).gather(1, action_batch)
+        state_action_values = self.policy_net(state_batch).masked_fill(mask_batch, float("-inf")).gather(1, action_batch)
 
         with torch.no_grad():
-            next_actions = self.policy_net(next_state_batch).masked_fill(next_mask_batch, -1e9).argmax(1, keepdim=True)
+            next_actions = self.policy_net(next_state_batch).masked_fill(next_mask_batch, float("-inf")).argmax(1, keepdim=True)
             next_state_action_values = (
-                self.target_net(next_state_batch).masked_fill(next_mask_batch, -1e9).gather(1, next_actions).squeeze(1)
+                self.target_net(next_state_batch).masked_fill(next_mask_batch, float("-inf")).gather(1, next_actions).squeeze(1)
             )
 
             expected_state_action_values = (

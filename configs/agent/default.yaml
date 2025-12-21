@@ -10,7 +10,7 @@ EPS_END: 0 # endvalue of epsilon
 EPS_DECAY: 5000 # steps until epsilon endvalue is reached
 TAU: 0.005 # soft-update rate
 GAMMA: 0.99 # discount factor
-LR: !!float 3e-3 # learning rate
+LR: !!float 3e-5 # learning rate
 CAPACITY: 100000 # capacity of replay memory
 MINI_BATCH_SIZE: 128 # batch size of replay samples
 # PER
